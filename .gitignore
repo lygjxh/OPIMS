@@ -1,0 +1,27 @@
+# 编译产物
+backend/opims.exe
+backend/frontend-dist/
+
+# 数据库（含敏感数据，不提交）
+*.db
+*.db-journal
+*.db-wal
+
+# 依赖目录
+frontend/node_modules/
+
+# 打包输出
+dist/
+opims_*.zip
+opims_*_backup/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# 环境变量
+.env

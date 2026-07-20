@@ -1,0 +1,134 @@
+package models
+
+type Project struct {
+	ID                  int     `json:"id"`
+	ShortName           string  `json:"short_name"`
+	ContractNo          string  `json:"contract_no"`
+	ProjectName         string  `json:"project_name"`
+	ProjectType         string  `json:"project_type"`
+	ProjectStatus       string  `json:"project_status"`
+	ImplementUnit       string  `json:"implement_unit"`
+	ContractAmount      float64 `json:"contract_amount"`
+	BudgetAmount        float64 `json:"budget_amount"`
+	ContractScope       string  `json:"contract_scope"`
+	KeyPoints           string  `json:"key_points"`
+	DomesticOverseas    string  `json:"domestic_overseas"`
+	Province            string  `json:"province"`
+	City                string  `json:"city"`
+	Address             string  `json:"address"`
+	Country             string  `json:"country"`
+	// Dates
+	ContractStartYear   int `json:"contract_start_year"`
+	ContractStartMonth  int `json:"contract_start_month"`
+	ContractEndYear     int `json:"contract_end_year"`
+	ContractEndMonth    int `json:"contract_end_month"`
+	ContractDuration    int `json:"contract_duration"`
+	ActualStartYear     int `json:"actual_start_year"`
+	ActualStartMonth    int `json:"actual_start_month"`
+	PlanEndYear         int `json:"plan_end_year"`
+	PlanEndMonth        int `json:"plan_end_month"`
+	ActualDuration      int `json:"actual_duration"`
+	CompletionYear      int `json:"completion_year"`
+	CompletionMonth     int `json:"completion_month"`
+	// Status
+	RunningStatus       string  `json:"running_status"`
+	AbnormalReason      string  `json:"abnormal_reason"`
+	ProgressStatus      string  `json:"progress_status"`
+	Issues              string  `json:"issues"`
+	CompletedOutput     float64 `json:"completed_output"`
+	CompletePercent     string  `json:"complete_percent"`
+	ProgressSummary     string  `json:"progress_summary"`
+	CumReceivable       float64 `json:"cum_receivable"`
+	CumReceived         float64 `json:"cum_received"`
+	OwedAmount          float64 `json:"owed_amount"`
+	// GPS
+	GPSLat              float64 `json:"gps_lat"`
+	GPSLng              float64 `json:"gps_lng"`
+	// Personnel
+	PMContract          string `json:"pm_contract"`
+	PMAppointed         string `json:"pm_appointed"`
+	PMOnsite            string `json:"pm_onsite"`
+	PMPhone             string `json:"pm_phone"`
+	PMBuilder           string `json:"pm_builder"`
+	PMSafetyCert        string `json:"pm_safety_cert"`
+	TechLeadAppointed   string `json:"tech_lead_appointed"`
+	TechLeadOnsite      string `json:"tech_lead_onsite"`
+	TechLeadPhone       string `json:"tech_lead_phone"`
+	TechLeadTitle       string `json:"tech_lead_title"`
+	QualityMgrAppointed string `json:"quality_mgr_appointed"`
+	QualityMgrOnsite    string `json:"quality_mgr_onsite"`
+	QualityMgrPhone     string `json:"quality_mgr_phone"`
+	QualityMgrCert      string `json:"quality_mgr_cert"`
+	HSEAppointed        string `json:"hse_mgr_appointed"`
+	HSEOnsite           string `json:"hse_mgr_onsite"`
+	HSEPhone            string `json:"hse_mgr_phone"`
+	HSECert             string `json:"hse_mgr_cert"`
+	CostMgrAppointed    string `json:"cost_mgr_appointed"`
+	CostMgrOnsite       string `json:"cost_mgr_onsite"`
+	CostMgrPhone        string `json:"cost_mgr_phone"`
+	CostMgrCert         string `json:"cost_mgr_cert"`
+	// Quality/Safety
+	QualityKeyProcess   string  `json:"quality_key_process"`
+	QualityMeasures     string  `json:"quality_measures"`
+	SafetyCost          float64 `json:"safety_cost"`
+	SafetyCostSpent     float64 `json:"safety_cost_spent"`
+	SafetyCostCum       float64 `json:"safety_cost_cum"`
+	SafetyMajorHazard   string  `json:"safety_major_hazard"`
+	SafetyHazardMeasure string  `json:"safety_hazard_measure"`
+	SafetyRiskSource    string  `json:"safety_risk_source"`
+	SafetyRiskMeasure   string  `json:"safety_risk_measure"`
+	// Owner/Design/Supervision
+	OwnerUnit           string `json:"owner_unit"`
+	OwnerContact        string `json:"owner_contact"`
+	OwnerPhone          string `json:"owner_phone"`
+	DesignUnit          string `json:"design_unit"`
+	DesignContact       string `json:"design_contact"`
+	DesignPhone         string `json:"design_phone"`
+	SupervisionUnit     string `json:"supervision_unit"`
+	SupervisionContact  string `json:"supervision_contact"`
+	SupervisionPhone    string `json:"supervision_phone"`
+	Reporter            string `json:"reporter"`
+	// Meta
+	PersonnelMgmt       int    `json:"personnel_mgmt"`
+	PersonnelLabor      int    `json:"personnel_labor"`
+	IsDeleted           int    `json:"is_deleted"`
+}
+
+type SubBlacklist struct {
+	ID              int    `json:"id"`
+	SubShortName    string `json:"sub_short_name"`
+	SubFullName     string `json:"sub_full_name"`
+	Country         string `json:"country"`
+	RelatedProject  string `json:"related_project"`
+	ListReason      string `json:"list_reason"`
+	ListDate        string `json:"list_date"`
+	RestrictUntil   string `json:"restrict_until"`
+	ListReporter    string `json:"list_reporter"`
+	DelistReason    string `json:"delist_reason"`
+	DelistDate      string `json:"delist_date"`
+	DelistReporter  string `json:"delist_reporter"`
+	Status          string `json:"status"`
+}
+
+type FileNode struct {
+	Name     string     `json:"name"`
+	Path     string     `json:"path"`
+	IsDir    bool       `json:"is_dir"`
+	Size     int64      `json:"size"`
+	ModTime  string     `json:"mod_time"`
+	Children []FileNode `json:"children,omitempty"`
+}
+
+type DashboardData struct {
+	TotalProjects  int            `json:"total_projects"`
+	StatusCounts   map[string]int `json:"status_counts"`
+	ProjectMarkers []MapMarker    `json:"project_markers"`
+}
+
+type MapMarker struct {
+	ShortName string  `json:"short_name"`
+	Lat       float64 `json:"lat"`
+	Lng       float64 `json:"lng"`
+	Country   string  `json:"country"`
+	Status    string  `json:"status"`
+}
