@@ -2,6 +2,10 @@
 backend/opims.exe
 backend/frontend-dist/
 
+# 运行日志与编辑器临时文件
+*.log
+*~
+
 # 数据库（含敏感数据，不提交）
 *.db
 *.db-journal

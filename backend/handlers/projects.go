@@ -90,7 +90,7 @@ func (h *Handler) listProjects(w http.ResponseWriter, r *http.Request) {
 
 	var projects []models.Project
 	for rows.Next() {
-		if p := scanProjectFromRows(rows); p != nil {
+		if p := scanProject(rows); p != nil {
 			projects = append(projects, *p)
 		}
 	}
@@ -191,7 +191,7 @@ func (h *Handler) ImportProjects(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	nameMap := loadNameMapping(h.fw.Root())
+	nameMap := loadNameMapping(h.root.Get())
 	imported, skipped, conflicts := 0, 0, []string{}
 
 	for _, p := range overseas {
@@ -265,7 +265,7 @@ func (h *Handler) ExportProjects(w http.ResponseWriter, r *http.Request) {
 
 	var projects []models.Project
 	for rows.Next() {
-		if p := scanProjectFromRows(rows); p != nil {
+		if p := scanProject(rows); p != nil {
 			projects = append(projects, *p)
 		}
 	}

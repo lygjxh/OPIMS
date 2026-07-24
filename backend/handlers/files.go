@@ -22,7 +22,7 @@ func (h *Handler) Files(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	projDir := filepath.Join(h.fw.Root(), projectName)
+	projDir := filepath.Join(h.root.Get(), projectName)
 	entries, err := os.ReadDir(projDir)
 	if err != nil {
 		json.NewEncoder(w).Encode([]models.FileNode{})
@@ -70,7 +70,7 @@ func (h *Handler) ContractsInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dir := filepath.Join(h.fw.Root(), project, "01.Contract")
+	dir := filepath.Join(h.root.Get(), project, "01.Contract")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		json.NewEncoder(w).Encode([]struct{}{})
@@ -124,7 +124,7 @@ func (h *Handler) ViewFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dir := filepath.Join(h.fw.Root(), project, folder)
+	dir := filepath.Join(h.root.Get(), project, folder)
 	var target string
 	if fileName != "" {
 		target = filepath.Join(dir, fileName)
@@ -157,7 +157,7 @@ func (h *Handler) ViewFile(w http.ResponseWriter, r *http.Request) {
 // ScanFiles scans the root directory and returns file tree.
 func (h *Handler) ScanFiles(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	root := h.fw.Root()
+	root := h.root.Get()
 
 	entries, err := os.ReadDir(root)
 	if err != nil {
@@ -203,7 +203,7 @@ func (h *Handler) FileRoot(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case "GET":
-		json.NewEncoder(w).Encode(map[string]string{"path": h.fw.Root()})
+		json.NewEncoder(w).Encode(map[string]string{"path": h.root.Get()})
 	case "POST", "PUT":
 		var body struct {
 			Root string `json:"root"`
@@ -215,7 +215,7 @@ func (h *Handler) FileRoot(w http.ResponseWriter, r *http.Request) {
 			newRoot = body.Path
 		}
 		if newRoot != "" {
-			h.fw.SetRoot(newRoot)
+			h.root.Set(newRoot)
 			database.DB.Exec("UPDATE app_config SET value=? WHERE key='file_root_path'", newRoot)
 		}
 		json.NewEncoder(w).Encode(map[string]string{"ok": "updated"})

@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"encoding/json"
 	"net/http"
 	"opims/models"
@@ -17,50 +16,25 @@ import (
 
 type Handler struct {
 	rootPath string
-	fw       *services.FileWatcher
+	root     *services.RootDir
 }
 
-func NewHandler(rootPath string, fw *services.FileWatcher) *Handler {
-	return &Handler{rootPath: rootPath, fw: fw}
+func NewHandler(rootPath string, root *services.RootDir) *Handler {
+	return &Handler{rootPath: rootPath, root: root}
 }
 
 // ---- helpers ----
 
-func scanProjectFromRows(rows *sql.Rows) *models.Project {
+// rowScanner 由 *sql.Row 与 *sql.Rows 共同实现，用于统一单行/多行扫描。
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+// scanProject 从一行查询结果填充 Project（列顺序须与 "SELECT * FROM projects" 一致）。
+func scanProject(rows rowScanner) *models.Project {
 	var p models.Project
 	var ca, ua string
 	rows.Scan(&p.ID, &p.ShortName, &p.ContractNo, &p.ProjectName, &p.ProjectType,
-		&p.ProjectStatus, &p.ImplementUnit, &p.ContractAmount, &p.BudgetAmount,
-		&p.ContractScope, &p.KeyPoints, &p.DomesticOverseas,
-		&p.Province, &p.City, &p.Address, &p.Country,
-		&p.ContractStartYear, &p.ContractStartMonth, &p.ContractEndYear, &p.ContractEndMonth,
-		&p.ContractDuration, &p.ActualStartYear, &p.ActualStartMonth,
-		&p.PlanEndYear, &p.PlanEndMonth, &p.ActualDuration,
-		&p.CompletionYear, &p.CompletionMonth, &p.RunningStatus, &p.AbnormalReason,
-		&p.ProgressStatus, &p.Issues,
-		&p.CompletedOutput, &p.CompletePercent, &p.ProgressSummary,
-		&p.CumReceivable, &p.CumReceived, &p.OwedAmount,
-		&p.GPSLat, &p.GPSLng,
-		&p.PMContract, &p.PMAppointed, &p.PMOnsite, &p.PMPhone, &p.PMBuilder, &p.PMSafetyCert,
-		&p.TechLeadAppointed, &p.TechLeadOnsite, &p.TechLeadPhone, &p.TechLeadTitle,
-		&p.QualityMgrAppointed, &p.QualityMgrOnsite, &p.QualityMgrPhone, &p.QualityMgrCert,
-		&p.HSEAppointed, &p.HSEOnsite, &p.HSEPhone, &p.HSECert,
-		&p.CostMgrAppointed, &p.CostMgrOnsite, &p.CostMgrPhone, &p.CostMgrCert,
-		&p.QualityKeyProcess, &p.QualityMeasures,
-		&p.SafetyCost, &p.SafetyCostSpent, &p.SafetyCostCum,
-		&p.SafetyMajorHazard, &p.SafetyHazardMeasure, &p.SafetyRiskSource, &p.SafetyRiskMeasure,
-		&p.OwnerUnit, &p.OwnerContact, &p.OwnerPhone,
-		&p.DesignUnit, &p.DesignContact, &p.DesignPhone,
-		&p.SupervisionUnit, &p.SupervisionContact, &p.SupervisionPhone,
-		&p.Reporter, &p.PersonnelMgmt, &p.PersonnelLabor,
-		&p.IsDeleted, &ca, &ua)
-	return &p
-}
-
-func scanProject(row *sql.Row) *models.Project {
-	var p models.Project
-	var ca, ua string
-	row.Scan(&p.ID, &p.ShortName, &p.ContractNo, &p.ProjectName, &p.ProjectType,
 		&p.ProjectStatus, &p.ImplementUnit, &p.ContractAmount, &p.BudgetAmount,
 		&p.ContractScope, &p.KeyPoints, &p.DomesticOverseas,
 		&p.Province, &p.City, &p.Address, &p.Country,

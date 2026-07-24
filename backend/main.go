@@ -54,12 +54,10 @@ func main() {
 		}
 	}
 
-	fw := services.NewFileWatcher(rootPath)
-	fw.Start()
-	defer fw.Stop()
+	rootDir := services.NewRootDir(rootPath)
 
 	mux := http.NewServeMux()
-	h := handlers.NewHandler(rootPath, fw)
+	h := handlers.NewHandler(rootPath, rootDir)
 
 	mux.HandleFunc("/api/projects/import", h.ImportProjects)
 	mux.HandleFunc("/api/projects/export", h.ExportProjects)
