@@ -9,7 +9,8 @@ const router = createRouter({
     { path: '/blacklist-sub', name: 'blacklistSub', component: () => import('../views/SubBlacklist.vue') },
     { path: '/progress', name: 'progress', component: () => import('../views/Placeholder.vue') },
     { path: '/quality', name: 'quality', component: () => import('../views/Placeholder.vue') },
-    { path: '/subcontract', name: 'subcontract', component: () => import('../views/Placeholder.vue') },
+    { path: '/subcontract', name: 'subcontract', component: () => import('../views/SubcontractList.vue') },
+    { path: '/subcontractors', name: 'subcontractors', component: () => import('../views/SubcontractorLib.vue') },
     { path: '/personnel', name: 'personnel', component: () => import('../views/Placeholder.vue') },
     { path: '/blacklist-person', name: 'blacklistPerson', component: () => import('../views/Placeholder.vue') },
   ]

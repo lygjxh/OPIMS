@@ -11,11 +11,16 @@
       </el-select>
     </div>
 
-    <el-table :data="filtered" style="width:100%" max-height="calc(100vh - 200px)">
+    <el-table :data="filtered" style="width:100%" max-height="calc(100vh - 200px)" :row-class-name="rowClass">
       <el-table-column prop="sub_short_name" :label="$t('blacklist.subShortName')" width="140" />
       <el-table-column prop="sub_full_name" :label="$t('blacklist.subFullName')" min-width="180" />
       <el-table-column prop="country" :label="$t('project.country')" width="100" />
       <el-table-column prop="related_project" label="提报项目" width="140" />
+      <el-table-column prop="restrict_level" label="限制等级" width="100">
+        <template #default="{ row }">
+          <el-tag v-if="row.restrict_level" :type="levelType(row.restrict_level)" size="small">{{ row.restrict_level }}</el-tag>
+        </template>
+      </el-table-column>
       <el-table-column prop="list_reason" label="列入原因" min-width="160" />
       <el-table-column prop="list_date" :label="$t('blacklist.listDate')" width="110" />
       <el-table-column prop="status" label="状态" width="90">
@@ -65,7 +70,20 @@
             <el-form-item label="限制日期"><el-date-picker v-model="form.restrict_until" type="date" style="width:100%" /></el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="列入提报人"><el-input v-model="form.list_reporter" /></el-form-item>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="限制等级">
+              <el-select v-model="form.restrict_level" style="width:100%" clearable>
+                <el-option label="黑名单" value="黑名单" />
+                <el-option label="限制使用" value="限制使用" />
+                <el-option label="已退库" value="已退库" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="列入提报人"><el-input v-model="form.list_reporter" /></el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">{{ $t('common.cancel') }}</el-button>
@@ -104,7 +122,7 @@ function openDialog(row?: any) {
   editing.value = row ? { ...row } : {}
   form.value = row ? { ...row, list_date: row.list_date || '', restrict_until: row.restrict_until || '' }
     : { sub_short_name: '', sub_full_name: '', country: '', related_project: '',
-        list_reason: '', list_date: '', restrict_until: '', list_reporter: '' }
+        list_reason: '', list_date: '', restrict_level: '', restrict_until: '', list_reporter: '' }
   dialogVisible.value = true
 }
 
@@ -144,10 +162,26 @@ function fmtDate(d: any) {
   return new Date(d).toISOString().slice(0, 10)
 }
 
+function rowClass({ row }: any) {
+  if (row.status === '已拉出') return 'row-delisted'
+  if (row.restrict_level === '黑名单') return 'row-blacklist'
+  if (row.restrict_level === '限制使用') return 'row-restricted'
+  return ''
+}
+
+function levelType(level: string) {
+  if (level === '黑名单') return 'danger'
+  if (level === '限制使用') return 'warning'
+  return 'info'
+}
+
 onMounted(load)
 </script>
 
 <style scoped>
 .blacklist { display: flex; flex-direction: column; gap: 12px; }
 .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
+:deep(.row-blacklist) { background-color: #ffebee; }
+:deep(.row-restricted) { background-color: #fff3e0; }
+:deep(.row-delisted) { background-color: #f5f5f5; }
 </style>

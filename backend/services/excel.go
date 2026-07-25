@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"opims/data"
 	"opims/models"
 	"strconv"
 	"strings"
@@ -429,3 +430,96 @@ func inferStatus(sheet string) string {
 }
 
 // extractCountry 已移至 country.go（关键词表外置 + 匹配顺序确定化）。
+
+// ParseSubcontractExcel parses the management ledger Excel (32 columns A-AF).
+// Row 1 = title (skip), Row 2 = headers, Rows 3+ = data.
+func ParseSubcontractExcel(path string) ([]models.SubcontractRecord, error) {
+	f, err := excelize.OpenFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("open excel: %w", err)
+	}
+	defer f.Close()
+
+	sheets := f.GetSheetList()
+	if len(sheets) == 0 {
+		return nil, fmt.Errorf("no sheets found")
+	}
+
+	rows, err := f.GetRows(sheets[0])
+	if err != nil {
+		return nil, fmt.Errorf("get rows: %w", err)
+	}
+	if len(rows) < 3 {
+		return nil, fmt.Errorf("expected at least 3 rows (title + header + data), got %d", len(rows))
+	}
+
+	var records []models.SubcontractRecord
+	for i := 2; i < len(rows); i++ {
+		row := rows[i]
+		if len(row) == 0 {
+			continue
+		}
+
+		r := models.SubcontractRecord{}
+		cell := func(col int) string {
+			if col < len(row) {
+				return strings.TrimSpace(row[col])
+			}
+			return ""
+		}
+		cellFloat := func(col int) float64 {
+			s := cell(col)
+			if s == "" {
+				return 0
+			}
+			v, _ := strconv.ParseFloat(strings.ReplaceAll(s, ",", ""), 64)
+			return v
+		}
+
+		r.SeqNo = cell(0)                  // A: 序号
+		r.BranchCompany = cell(1)          // B: 分公司名称
+		r.ProjectName = cell(2)            // C: 项目名称
+		r.MainContractAmount = cellFloat(3) // D: 主合同额
+		r.SubName = cell(4)                // E: 分包商名称
+
+		if r.SubName == "" {
+			continue // skip rows without subcontractor name
+		}
+
+		r.SubTier = cell(5)               // F: 分包商层级
+		r.SubProfessionRaw = cell(6)      // G: 分包商主专业
+		r.SubContractProfession = cell(7) // H: 合同专业
+		r.SubController = cell(8)         // I: 实控人
+		r.SubControllerPhone = cell(9)    // J: 实控人电话
+		r.ContractNo = cell(10)           // K: 分包合同编号
+		r.ContractName = cell(11)         // L: 分包合同名称
+		r.ContractAmount = cellFloat(12)  // M: 分包合同额
+		r.SupplementAmount = cellFloat(13) // N: 补充协议金额
+		r.ContractDate = cell(14)         // O: 合同签订时间
+		r.ProgressPercent = cell(15)      // P: 施工状态
+		r.EntryDate = cell(16)            // Q: 进场时间
+		r.ExitDate = cell(17)             // R: 预计撤场时间
+		r.EvaluationCompleted = cell(18)  // S: 是否完成完工履约评价
+		r.PersonnelCount = int(cellFloat(19)) // T: 现场人员数量
+		r.SiteLeader = cell(20)           // U: 现场负责人
+		r.SiteLeaderApproved = cell(21)   // V: 审批版现场负责人
+		r.SiteLeaderStatus = cell(22)     // W: 在岗情况
+		r.TechLeader = cell(23)           // X: 现场技术负责人
+		r.TechLeaderApproved = cell(24)   // Y: 审批版技术负责人
+		r.TechLeaderStatus = cell(25)     // Z: 在岗情况
+		r.SafetyOfficer = cell(26)        // AA: 现场安全员
+		r.SafetyOfficerApproved = cell(27) // AB: 审批版安全员
+		r.SafetyOfficerStatus = cell(28)  // AC: 在岗情况
+		r.ContractCompliance = cell(29)   // AD: 是否与合同一致
+		r.NoncomplianceNote = cell(30)    // AE: 不一致说明
+		r.Remarks = cell(31)              // AF: 备注
+
+		// Map profession
+		r.StandardizedProfession = data.MapProfession(r.SubProfessionRaw)
+		r.ProfessionCategory = data.CategoryOf(r.StandardizedProfession)
+
+		records = append(records, r)
+	}
+
+	return records, nil
+}

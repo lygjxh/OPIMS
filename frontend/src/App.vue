@@ -25,12 +25,17 @@
         </template>
 
         <div class="nav-group">扩展模块</div>
-        <button v-for="m in extMenu" :key="m.path" type="button"
-          class="nav-item pending" @click="notReady($t('menu.' + m.key))">
-          <el-icon class="nav-ic"><component :is="m.icon" /></el-icon>
-          <span>{{ $t('menu.' + m.key) }}</span>
-          <span class="soon">待建</span>
-        </button>
+        <template v-for="m in extMenu" :key="m.path">
+          <RouterLink v-if="!m.disabled" :to="m.path" class="nav-item">
+            <el-icon class="nav-ic"><component :is="m.icon" /></el-icon>
+            <span>{{ $t('menu.' + m.key) }}</span>
+          </RouterLink>
+          <button v-else type="button" class="nav-item pending" @click="notReady($t('menu.' + m.key))">
+            <el-icon class="nav-ic"><component :is="m.icon" /></el-icon>
+            <span>{{ $t('menu.' + m.key) }}</span>
+            <span class="soon">待建</span>
+          </button>
+        </template>
       </nav>
 
       <div class="side-foot">v0.1 · for-claude</div>
@@ -68,7 +73,7 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import {
   DataBoard, List, FolderOpened, WarningFilled, UserFilled,
-  TrendCharts, CircleCheck, Connection, Avatar, Switch,
+  TrendCharts, CircleCheck, Connection, Avatar, Switch, OfficeBuilding,
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -82,10 +87,11 @@ const mainMenu = [
   { path: '/blacklist-person', key: 'blacklistPerson', icon: UserFilled, disabled: true },
 ]
 const extMenu = [
-  { path: '/progress', key: 'progress', icon: TrendCharts },
-  { path: '/quality', key: 'quality', icon: CircleCheck },
-  { path: '/subcontract', key: 'subcontract', icon: Connection },
-  { path: '/personnel', key: 'personnel', icon: Avatar },
+  { path: '/subcontract', key: 'subcontract', icon: Connection, disabled: false },
+  { path: '/subcontractors', key: 'subcontractors', icon: OfficeBuilding, disabled: false },
+  { path: '/progress', key: 'progress', icon: TrendCharts, disabled: true },
+  { path: '/quality', key: 'quality', icon: CircleCheck, disabled: true },
+  { path: '/personnel', key: 'personnel', icon: Avatar, disabled: true },
 ]
 
 function toggleLang() {

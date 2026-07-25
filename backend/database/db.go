@@ -136,6 +136,7 @@ func migrate() error {
 		related_project TEXT DEFAULT '',
 		list_reason TEXT DEFAULT '',
 		list_date TEXT NOT NULL,
+		restrict_level TEXT DEFAULT '',
 		restrict_until TEXT DEFAULT '',
 		list_reporter TEXT DEFAULT '',
 		delist_reason TEXT DEFAULT '',
@@ -159,11 +160,117 @@ func migrate() error {
 		value TEXT NOT NULL
 	);
 
+	-- project_subcontract: mirrors the management ledger (32 columns A-AF)
+	CREATE TABLE IF NOT EXISTS project_subcontract (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		seq_no TEXT DEFAULT '',
+		branch_company TEXT DEFAULT '',
+		project_name TEXT DEFAULT '',
+		main_contract_amount REAL DEFAULT 0,
+		sub_name TEXT NOT NULL,
+		sub_tier TEXT DEFAULT '',
+		sub_profession_raw TEXT DEFAULT '',
+		sub_contract_profession TEXT DEFAULT '',
+		sub_controller TEXT DEFAULT '',
+		sub_controller_phone TEXT DEFAULT '',
+		contract_no TEXT DEFAULT '',
+		contract_name TEXT DEFAULT '',
+		contract_amount REAL DEFAULT 0,
+		supplement_amount REAL DEFAULT 0,
+		contract_date TEXT DEFAULT '',
+		progress_percent TEXT DEFAULT '',
+		entry_date TEXT DEFAULT '',
+		exit_date TEXT DEFAULT '',
+		evaluation_completed TEXT DEFAULT '',
+		personnel_count INTEGER DEFAULT 0,
+		site_leader TEXT DEFAULT '',
+		site_leader_approved TEXT DEFAULT '',
+		site_leader_status TEXT DEFAULT '',
+		tech_leader TEXT DEFAULT '',
+		tech_leader_approved TEXT DEFAULT '',
+		tech_leader_status TEXT DEFAULT '',
+		safety_officer TEXT DEFAULT '',
+		safety_officer_approved TEXT DEFAULT '',
+		safety_officer_status TEXT DEFAULT '',
+		contract_compliance TEXT DEFAULT '',
+		noncompliance_note TEXT DEFAULT '',
+		remarks TEXT DEFAULT '',
+		project_short_name TEXT DEFAULT '',
+		standardized_profession TEXT DEFAULT '',
+		profession_category TEXT DEFAULT '',
+		is_deleted INTEGER DEFAULT 0,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
+	-- subcontractors_base: subcontractor library master data
+	CREATE TABLE IF NOT EXISTS subcontractors_base (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		short_name TEXT NOT NULL UNIQUE,
+		full_name TEXT NOT NULL,
+		registration_type TEXT NOT NULL DEFAULT '国内',
+		country TEXT DEFAULT '',
+		profession_category TEXT NOT NULL,
+		profession TEXT NOT NULL,
+		other_professions TEXT DEFAULT '',
+		parent_short_name TEXT DEFAULT '',
+		legal_rep_name TEXT NOT NULL,
+		legal_rep_id TEXT DEFAULT '',
+		legal_rep_phone TEXT NOT NULL,
+		contact_name TEXT DEFAULT '',
+		contact_title TEXT DEFAULT '',
+		contact_phone TEXT DEFAULT '',
+		contact_email TEXT DEFAULT '',
+		biz_license TEXT DEFAULT '',
+		tax_id TEXT DEFAULT '',
+		reg_address TEXT DEFAULT '',
+		reg_capital TEXT DEFAULT '',
+		notes TEXT DEFAULT '',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
+	-- subcontractor_projects: unified cooperation history (Plan B)
+	CREATE TABLE IF NOT EXISTS subcontractor_projects (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		sub_short_name TEXT NOT NULL,
+		project_short_name TEXT DEFAULT '',
+		project_name TEXT DEFAULT '',
+		start_date TEXT DEFAULT '',
+		end_date TEXT DEFAULT '',
+		contract_no TEXT DEFAULT '',
+		contract_amount REAL DEFAULT 0,
+		scope TEXT DEFAULT '',
+		profession_category TEXT DEFAULT '',
+		profession TEXT DEFAULT '',
+		other_professions TEXT DEFAULT '',
+		project_status TEXT DEFAULT '',
+		is_manual INTEGER DEFAULT 0,
+		notes TEXT DEFAULT '',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
 	INSERT OR IGNORE INTO app_config (key, value) VALUES ('file_root_path', '');
 	`
 
-	_, err := DB.Exec(schema)
-	return err
+	if _, err := DB.Exec(schema); err != nil {
+		return err
+	}
+
+	// Safe addition of restrict_level column for existing databases
+	addColumnIfMissing("subcontractor_blacklist", "restrict_level", "TEXT DEFAULT ''")
+	return nil
+}
+
+// addColumnIfMissing adds a column only if it doesn't already exist in the table.
+func addColumnIfMissing(table, column, colDef string) {
+	var count int
+	row := DB.QueryRow("SELECT COUNT(*) FROM pragma_table_info(?) WHERE name=?", table, column)
+	if err := row.Scan(&count); err != nil || count > 0 {
+		return
+	}
+	DB.Exec("ALTER TABLE " + table + " ADD COLUMN " + column + " " + colDef)
 }
 
 func Close() error {

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"opims/database"
 	"opims/models"
+	"opims/services"
 	"strconv"
 	"strings"
 )
@@ -31,7 +32,11 @@ func (h *Handler) SubBlacklist(w http.ResponseWriter, r *http.Request) {
 		}
 
 		rows, err := database.DB.Query(
-			"SELECT * FROM subcontractor_blacklist "+where+" ORDER BY id DESC", args...)
+			`SELECT id, sub_short_name, sub_full_name, country, related_project,
+			        list_reason, list_date, restrict_level, restrict_until, list_reporter,
+			        delist_reason, delist_date, delist_reporter, status,
+			        created_at, updated_at
+			 FROM subcontractor_blacklist `+where+" ORDER BY id DESC", args...)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -42,7 +47,7 @@ func (h *Handler) SubBlacklist(w http.ResponseWriter, r *http.Request) {
 		for rows.Next() {
 			var b models.SubBlacklist
 			rows.Scan(&b.ID, &b.SubShortName, &b.SubFullName, &b.Country, &b.RelatedProject,
-				&b.ListReason, &b.ListDate, &b.RestrictUntil, &b.ListReporter,
+				&b.ListReason, &b.ListDate, &b.RestrictLevel, &b.RestrictUntil, &b.ListReporter,
 				&b.DelistReason, &b.DelistDate, &b.DelistReporter, &b.Status,
 				new(string), new(string))
 			list = append(list, b)
@@ -54,16 +59,17 @@ func (h *Handler) SubBlacklist(w http.ResponseWriter, r *http.Request) {
 		json.NewDecoder(r.Body).Decode(&b)
 		b.Status = "列入中"
 		res, err := database.DB.Exec(
-			`INSERT INTO subcontractor_blacklist (sub_short_name,sub_full_name,country,related_project,list_reason,list_date,restrict_until,list_reporter,status)
-			 VALUES (?,?,?,?,?,?,?,?,?)`,
+			`INSERT INTO subcontractor_blacklist (sub_short_name,sub_full_name,country,related_project,list_reason,list_date,restrict_level,restrict_until,list_reporter,status)
+			 VALUES (?,?,?,?,?,?,?,?,?,?)`,
 			b.SubShortName, b.SubFullName, b.Country, b.RelatedProject,
-			b.ListReason, b.ListDate, b.RestrictUntil, b.ListReporter, b.Status)
+			b.ListReason, b.ListDate, b.RestrictLevel, b.RestrictUntil, b.ListReporter, b.Status)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		id, _ := res.LastInsertId()
 		database.DB.Exec("INSERT INTO blacklist_audit_log (blacklist_id,action,detail) VALUES (?,'列入','')", id)
+		services.OnBlacklistChanged(b.SubShortName, "列入")
 		json.NewEncoder(w).Encode(map[string]string{"ok": "created"})
 
 	default:
@@ -74,7 +80,14 @@ func (h *Handler) SubBlacklist(w http.ResponseWriter, r *http.Request) {
 // SubBlacklistByID handles single-entry PUT / DELETE.
 func (h *Handler) SubBlacklistByID(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	id, _ := strconv.Atoi(strings.TrimPrefix(r.URL.Path, "/api/blacklist/subcontractor/"))
+
+	path := r.URL.Path
+	if strings.HasSuffix(path, "/audit") {
+		h.SubBlacklistAudit(w, r)
+		return
+	}
+
+	id, _ := strconv.Atoi(strings.TrimPrefix(path, "/api/blacklist/subcontractor/"))
 
 	switch r.Method {
 	case "PUT":
@@ -94,10 +107,10 @@ func (h *Handler) SubBlacklistByID(w http.ResponseWriter, r *http.Request) {
 
 		_, err := database.DB.Exec(
 			`UPDATE subcontractor_blacklist SET sub_short_name=?,sub_full_name=?,country=?,related_project=?,
-			 list_reason=?,list_date=?,restrict_until=?,list_reporter=?,
+			 list_reason=?,list_date=?,restrict_level=?,restrict_until=?,list_reporter=?,
 			 delist_reason=?,delist_date=?,delist_reporter=?,status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`,
 			b.SubShortName, b.SubFullName, b.Country, b.RelatedProject,
-			b.ListReason, b.ListDate, b.RestrictUntil, b.ListReporter,
+			b.ListReason, b.ListDate, b.RestrictLevel, b.RestrictUntil, b.ListReporter,
 			b.DelistReason, b.DelistDate, b.DelistReporter, b.Status, id)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -109,20 +122,49 @@ func (h *Handler) SubBlacklistByID(w http.ResponseWriter, r *http.Request) {
 			action = "拉出"
 		}
 		database.DB.Exec("INSERT INTO blacklist_audit_log (blacklist_id,action,detail) VALUES (?,?,'')", id, action)
+		services.OnBlacklistChanged(b.SubShortName, action)
 		json.NewEncoder(w).Encode(map[string]string{"ok": "updated"})
 
 	case "DELETE":
-		var status string
-		database.DB.QueryRow("SELECT status FROM subcontractor_blacklist WHERE id=?", id).Scan(&status)
+		var status, shortName string
+		database.DB.QueryRow("SELECT status, sub_short_name FROM subcontractor_blacklist WHERE id=?", id).Scan(&status, &shortName)
 		if status == "已拉出" {
 			http.Error(w, "已拉出的记录不可删除", http.StatusForbidden)
 			return
 		}
 		database.DB.Exec("DELETE FROM subcontractor_blacklist WHERE id=?", id)
 		database.DB.Exec("INSERT INTO blacklist_audit_log (blacklist_id,action,detail) VALUES (?,'删除','')", id)
+		services.OnBlacklistChanged(shortName, "删除")
 		json.NewEncoder(w).Encode(map[string]string{"ok": "deleted"})
 
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// SubBlacklistAudit returns the audit log for a blacklist entry.
+func (h *Handler) SubBlacklistAudit(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	trimmed := strings.TrimPrefix(r.URL.Path, "/api/blacklist/subcontractor/")
+	trimmed = strings.TrimSuffix(trimmed, "/audit")
+	id, _ := strconv.Atoi(trimmed)
+
+	rows, err := database.DB.Query(
+		"SELECT id, blacklist_id, action, detail, created_at FROM blacklist_audit_log WHERE blacklist_id=? ORDER BY id DESC", id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var logs []map[string]interface{}
+	for rows.Next() {
+		var logID, blID int
+		var action, detail, createdAt string
+		rows.Scan(&logID, &blID, &action, &detail, &createdAt)
+		logs = append(logs, map[string]interface{}{
+			"id": logID, "action": action, "detail": detail, "created_at": createdAt,
+		})
+	}
+	json.NewEncoder(w).Encode(logs)
 }

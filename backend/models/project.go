@@ -102,12 +102,98 @@ type SubBlacklist struct {
 	RelatedProject  string `json:"related_project"`
 	ListReason      string `json:"list_reason"`
 	ListDate        string `json:"list_date"`
+	RestrictLevel   string `json:"restrict_level"`
 	RestrictUntil   string `json:"restrict_until"`
 	ListReporter    string `json:"list_reporter"`
 	DelistReason    string `json:"delist_reason"`
 	DelistDate      string `json:"delist_date"`
 	DelistReporter  string `json:"delist_reporter"`
 	Status          string `json:"status"`
+}
+
+// SubcontractRecord mirrors one row from the management ledger (project_subcontract table).
+type SubcontractRecord struct {
+	ID                     int     `json:"id"`
+	SeqNo                  string  `json:"seq_no"`
+	BranchCompany          string  `json:"branch_company"`
+	ProjectName            string  `json:"project_name"`
+	MainContractAmount     float64 `json:"main_contract_amount"`
+	SubName                string  `json:"sub_name"`
+	SubTier                string  `json:"sub_tier"`
+	SubProfessionRaw       string  `json:"sub_profession_raw"`
+	SubContractProfession  string  `json:"sub_contract_profession"`
+	SubController          string  `json:"sub_controller"`
+	SubControllerPhone     string  `json:"sub_controller_phone"`
+	ContractNo             string  `json:"contract_no"`
+	ContractName           string  `json:"contract_name"`
+	ContractAmount         float64 `json:"contract_amount"`
+	SupplementAmount       float64 `json:"supplement_amount"`
+	ContractDate           string  `json:"contract_date"`
+	ProgressPercent        string  `json:"progress_percent"`
+	EntryDate              string  `json:"entry_date"`
+	ExitDate               string  `json:"exit_date"`
+	EvaluationCompleted    string  `json:"evaluation_completed"`
+	PersonnelCount         int     `json:"personnel_count"`
+	SiteLeader             string  `json:"site_leader"`
+	SiteLeaderApproved     string  `json:"site_leader_approved"`
+	SiteLeaderStatus       string  `json:"site_leader_status"`
+	TechLeader             string  `json:"tech_leader"`
+	TechLeaderApproved     string  `json:"tech_leader_approved"`
+	TechLeaderStatus       string  `json:"tech_leader_status"`
+	SafetyOfficer          string  `json:"safety_officer"`
+	SafetyOfficerApproved  string  `json:"safety_officer_approved"`
+	SafetyOfficerStatus    string  `json:"safety_officer_status"`
+	ContractCompliance     string  `json:"contract_compliance"`
+	NoncomplianceNote      string  `json:"noncompliance_note"`
+	Remarks                string  `json:"remarks"`
+	ProjectShortName       string  `json:"project_short_name"`
+	StandardizedProfession string  `json:"standardized_profession"`
+	ProfessionCategory     string  `json:"profession_category"`
+	IsDeleted              int     `json:"is_deleted"`
+}
+
+// SubcontractorBase represents a subcontractor in the library.
+type SubcontractorBase struct {
+	ID                 int    `json:"id"`
+	ShortName          string `json:"short_name"`
+	FullName           string `json:"full_name"`
+	RegistrationType   string `json:"registration_type"`
+	Country            string `json:"country"`
+	ProfessionCategory string `json:"profession_category"`
+	Profession         string `json:"profession"`
+	OtherProfessions   string `json:"other_professions"`
+	ParentShortName    string `json:"parent_short_name"`
+	LegalRepName       string `json:"legal_rep_name"`
+	LegalRepID         string `json:"legal_rep_id"`
+	LegalRepPhone      string `json:"legal_rep_phone"`
+	ContactName        string `json:"contact_name"`
+	ContactTitle       string `json:"contact_title"`
+	ContactPhone       string `json:"contact_phone"`
+	ContactEmail       string `json:"contact_email"`
+	BizLicense         string `json:"biz_license"`
+	TaxID              string `json:"tax_id"`
+	RegAddress         string `json:"reg_address"`
+	RegCapital         string `json:"reg_capital"`
+	Notes              string `json:"notes"`
+}
+
+// SubcontractorProject is a single cooperation history entry.
+type SubcontractorProject struct {
+	ID                 int     `json:"id"`
+	SubShortName       string  `json:"sub_short_name"`
+	ProjectShortName   string  `json:"project_short_name"`
+	ProjectName        string  `json:"project_name"`
+	StartDate          string  `json:"start_date"`
+	EndDate            string  `json:"end_date"`
+	ContractNo         string  `json:"contract_no"`
+	ContractAmount     float64 `json:"contract_amount"`
+	Scope              string  `json:"scope"`
+	ProfessionCategory string  `json:"profession_category"`
+	Profession         string  `json:"profession"`
+	OtherProfessions   string  `json:"other_professions"`
+	ProjectStatus      string  `json:"project_status"`
+	IsManual           int     `json:"is_manual"`
+	Notes              string  `json:"notes"`
 }
 
 type FileNode struct {

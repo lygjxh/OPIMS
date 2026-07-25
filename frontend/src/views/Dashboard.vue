@@ -325,7 +325,8 @@ const shortcuts = [
   { path: '/blacklist-person', label: t('menu.blacklistPerson'), icon: UserFilled, ready: false },
   { path: '/progress', label: t('menu.progress'), icon: TrendCharts, ready: false },
   { path: '/quality', label: t('menu.quality'), icon: CircleCheck, ready: false },
-  { path: '/subcontract', label: t('menu.subcontract'), icon: Connection, ready: false },
+  { path: '/subcontract', label: t('menu.subcontract'), icon: Connection, ready: true },
+  { path: '/subcontractors', label: t('menu.subcontractors'), icon: Connection, ready: false },
   { path: '/personnel', label: t('menu.personnel'), icon: Avatar, ready: false },
 ]
 function goShortcut(item: any) {
