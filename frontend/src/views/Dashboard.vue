@@ -120,8 +120,8 @@
       <template #header>{{ $t('dashboard.shortcuts') }}</template>
       <div class="shortcuts">
         <button class="shortcut" v-for="item in shortcuts" :key="item.path"
-          type="button" @click="goShortcut(item)">
-          <el-icon :size="22"><component :is="item.icon" /></el-icon>
+          type="button" :title="item.label" @click="goShortcut(item)">
+          <el-icon :size="16"><component :is="item.icon" /></el-icon>
           <span>{{ item.label }}</span>
         </button>
       </div>
@@ -472,15 +472,22 @@ function addMarker(lat: number, lng: number, name: string, status: string, count
   border-radius: 7px; padding: 7px 10px;
 }
 
-/* ---- 快捷入口 ---- */
-.shortcuts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 11px; }
-.shortcut {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
-  padding: 18px 8px; border-radius: 10px; cursor: pointer; font: inherit;
-  background: #f6f9fe; border: 1px solid var(--c-border); color: var(--c-primary-700);
-  font-size: 13px; font-weight: 500; transition: all .18s;
+/* ---- 快捷入口：自适应铺满，模块增多时自动换行 ---- */
+.shortcuts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(152px, 1fr));
+  gap: 8px;
 }
-.shortcut:hover { background: var(--c-primary); color: #fff; border-color: var(--c-primary); transform: translateY(-2px); }
+.shortcut {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 12px; border-radius: 8px; cursor: pointer; font: inherit;
+  background: #f6f9fe; border: 1px solid var(--c-border); color: var(--c-primary-700);
+  font-size: 13px; font-weight: 500; transition: all .16s;
+  text-align: left; min-width: 0;
+}
+.shortcut span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shortcut :deep(.el-icon) { flex-shrink: 0; }
+.shortcut:hover { background: var(--c-primary); color: #fff; border-color: var(--c-primary); }
 .shortcut:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 2px; }
 
 /* ---- 合同额条形图（单一色调；长度编码量级） ---- */
