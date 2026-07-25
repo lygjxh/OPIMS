@@ -1,0 +1,135 @@
+/* ============================================================
+   OPIMS · 新版视觉主题 (Data-Dense Dashboard)
+   深蓝主色 #1E40AF + 琥珀强调 #D97706 · 企业级 · 无外部字体依赖
+   ============================================================ */
+
+:root {
+  /* 品牌色 */
+  --c-primary: #1e40af;
+  --c-primary-600: #1d4ed8;
+  --c-primary-700: #1e3a8a;
+  --c-secondary: #3b82f6;
+  --c-accent: #d97706;
+  --c-accent-soft: #fef3e2;
+
+  /* 中性色 */
+  --c-bg: #f4f7fb;
+  --c-surface: #ffffff;
+  --c-text: #334155;
+  --c-text-strong: #0f172a;
+  --c-text-muted: #64748b;
+  --c-border: #e5eaf1;
+  --c-border-strong: #d5deea;
+
+  /* 状态色（项目状态） */
+  --c-status-inprogress: #2563eb;
+  --c-status-notstarted: #d97706;
+  --c-status-suspended: #dc2626;
+  --c-status-completed: #16a34a;
+
+  /* 侧边栏（深蓝） */
+  --c-side-bg: #0b1e3f;
+  --c-side-bg-2: #102a55;
+  --c-side-text: #a9b8d4;
+  --c-side-text-strong: #ffffff;
+  --c-side-active-bg: rgba(59, 130, 246, 0.16);
+
+  /* 形状与阴影 */
+  --radius-sm: 8px;
+  --radius: 12px;
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.05);
+  --shadow-pop: 0 8px 28px rgba(15, 23, 42, 0.12);
+
+  --font-sans: 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+  --font-num: 'DIN Alternate', 'Bahnschrift', 'Segoe UI', var(--font-sans);
+
+  /* ---- Element Plus 主题变量覆盖 ---- */
+  --el-color-primary: var(--c-primary);
+  --el-color-primary-light-3: #4f6fce;
+  --el-color-primary-light-5: #8298dd;
+  --el-color-primary-light-7: #b4c2eb;
+  --el-color-primary-light-8: #cdd7f2;
+  --el-color-primary-light-9: #e7ecf9;
+  --el-color-primary-dark-2: var(--c-primary-700);
+
+  --el-color-success: var(--c-status-completed);
+  --el-color-warning: var(--c-accent);
+  --el-color-danger: var(--c-status-suspended);
+
+  --el-border-radius-base: 9px;
+  --el-border-radius-small: 7px;
+  --el-font-family: var(--font-sans);
+  --el-text-color-primary: var(--c-text-strong);
+  --el-text-color-regular: var(--c-text);
+  --el-border-color: var(--c-border);
+  --el-border-color-lighter: var(--c-border);
+  --el-fill-color-blank: var(--c-surface);
+}
+
+* { box-sizing: border-box; }
+html, body, #app { height: 100%; margin: 0; }
+body {
+  font-family: var(--font-sans);
+  color: var(--c-text);
+  background: var(--c-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+/* ---- 卡片 ---- */
+.el-card {
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  transition: box-shadow .2s ease, transform .2s ease;
+  overflow: hidden;
+}
+.el-card__header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--c-border);
+  font-weight: 600;
+  color: var(--c-text-strong);
+  letter-spacing: .2px;
+}
+.el-card__body { padding: 18px; }
+
+/* ---- 按钮 ---- */
+.el-button { font-weight: 500; border-radius: var(--el-border-radius-base); }
+.el-button--primary {
+  --el-button-bg-color: var(--c-primary);
+  --el-button-border-color: var(--c-primary);
+  --el-button-hover-bg-color: var(--c-primary-600);
+  --el-button-hover-border-color: var(--c-primary-600);
+  box-shadow: 0 1px 2px rgba(30, 64, 175, .25);
+}
+
+/* ---- 表格 ---- */
+.el-table {
+  --el-table-header-bg-color: #f1f5fb;
+  --el-table-header-text-color: var(--c-text-strong);
+  --el-table-border-color: var(--c-border);
+  --el-table-row-hover-bg-color: #eef4ff;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+.el-table th.el-table__cell { font-weight: 600; }
+
+/* ---- 输入/下拉 ---- */
+.el-input__wrapper, .el-select__wrapper {
+  border-radius: var(--el-border-radius-base);
+}
+
+/* ---- 标签 ---- */
+.el-tag { border-radius: 6px; font-weight: 500; }
+
+/* 滚动条 */
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-thumb { background: #c6d2e3; border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: #a9b8d0; }
+::-webkit-scrollbar-track { background: transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
