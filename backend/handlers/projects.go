@@ -198,7 +198,14 @@ func (h *Handler) ImportProjects(w http.ResponseWriter, r *http.Request) {
 	}
 
 	nameMap := loadNameMapping(h.root.Get())
-	imported, skipped, conflicts := 0, 0, []string{}
+	imported, skipped := 0, 0
+	type conflict struct {
+		ShortName string             `json:"short_name"`
+		Existing  models.Project     `json:"existing"`
+		Incoming  models.Project     `json:"incoming"`
+		Diffs     []map[string]string `json:"diffs"`
+	}
+	var conflictList []conflict
 
 	for _, p := range overseas {
 		if mapped, ok := nameMap[p.ProjectName]; ok {
@@ -209,21 +216,93 @@ func (h *Handler) ImportProjects(w http.ResponseWriter, r *http.Request) {
 			p.ShortName = p.ProjectName
 		}
 
-		var existingID int
-		if err := database.DB.QueryRow("SELECT id FROM projects WHERE short_name=? AND is_deleted=0", p.ShortName).Scan(&existingID); err == nil {
+		var existing models.Project
+		err := database.DB.QueryRow("SELECT * FROM projects WHERE short_name=? AND is_deleted=0", p.ShortName).Scan(
+			&existing.ID, &existing.ShortName, &existing.ContractNo, &existing.ProjectName,
+			&existing.ProjectType, &existing.ProjectStatus, &existing.ImplementUnit,
+			&existing.ContractAmount, &existing.BudgetAmount, &existing.ContractScope,
+			&existing.KeyPoints, &existing.DomesticOverseas, &existing.Province, &existing.City,
+			&existing.Address, &existing.Country,
+			&existing.ContractStartYear, &existing.ContractStartMonth,
+			&existing.ContractEndYear, &existing.ContractEndMonth, &existing.ContractDuration,
+			&existing.ActualStartYear, &existing.ActualStartMonth,
+			&existing.PlanEndYear, &existing.PlanEndMonth, &existing.ActualDuration,
+			&existing.CompletionYear, &existing.CompletionMonth,
+			&existing.RunningStatus, &existing.AbnormalReason, &existing.ProgressStatus,
+			&existing.Issues, &existing.CompletedOutput, &existing.CompletePercent,
+			&existing.ProgressSummary, &existing.CumReceivable, &existing.CumReceived,
+			&existing.OwedAmount,
+			&existing.GPSLat, &existing.GPSLng,
+			&existing.PMContract, &existing.PMAppointed, &existing.PMOnsite, &existing.PMPhone,
+			&existing.PMBuilder, &existing.PMSafetyCert,
+			&existing.TechLeadAppointed, &existing.TechLeadOnsite, &existing.TechLeadPhone,
+			&existing.TechLeadTitle,
+			&existing.QualityMgrAppointed, &existing.QualityMgrOnsite, &existing.QualityMgrPhone,
+			&existing.QualityMgrCert,
+			&existing.HSEAppointed, &existing.HSEOnsite, &existing.HSEPhone, &existing.HSECert,
+			&existing.CostMgrAppointed, &existing.CostMgrOnsite, &existing.CostMgrPhone,
+			&existing.CostMgrCert,
+			&existing.QualityKeyProcess, &existing.QualityMeasures,
+			&existing.SafetyCost, &existing.SafetyCostSpent, &existing.SafetyCostCum,
+			&existing.SafetyMajorHazard, &existing.SafetyHazardMeasure,
+			&existing.SafetyRiskSource, &existing.SafetyRiskMeasure,
+			&existing.OwnerUnit, &existing.OwnerContact, &existing.OwnerPhone,
+			&existing.DesignUnit, &existing.DesignContact, &existing.DesignPhone,
+			&existing.SupervisionUnit, &existing.SupervisionContact, &existing.SupervisionPhone,
+			&existing.Reporter,
+			&existing.PersonnelMgmt, &existing.PersonnelLabor,
+			&existing.IsDeleted,
+		)
+
+		if err == nil {
+			// Conflict detected
 			switch conflictMode {
 			case "skip":
 				skipped++
 				continue
 			case "overwrite":
-				database.DB.Exec("DELETE FROM projects WHERE id=?", existingID)
+				database.DB.Exec("DELETE FROM projects WHERE id=?", existing.ID)
 			case "keep_both":
-				conflicts = append(conflicts, p.ShortName)
-				continue
+				// Generate unique short name with suffix
+				suffix := 1
+				origShort := p.ShortName
+				for {
+					var c int
+					database.DB.QueryRow("SELECT COUNT(*) FROM projects WHERE short_name=?", p.ShortName).Scan(&c)
+					if c == 0 {
+						break
+					}
+					suffix++
+					p.ShortName = origShort + "_" + strconv.Itoa(suffix)
+				}
+			}
+
+			// Build field-level diffs for conflict reporting
+			if conflictMode == "skip" || conflictMode == "keep_both" {
+				var diffs []map[string]string
+				for _, pair := range []struct{ field, a, b string }{
+					{"project_name", existing.ProjectName, p.ProjectName},
+					{"contract_amount", formatFloat(existing.ContractAmount), formatFloat(p.ContractAmount)},
+					{"project_status", existing.ProjectStatus, p.ProjectStatus},
+					{"country", existing.Country, p.Country},
+				} {
+					if pair.a != pair.b {
+						diffs = append(diffs, map[string]string{"field": pair.field, "old": pair.a, "new": pair.b})
+					}
+				}
+				conflictList = append(conflictList, conflict{
+					ShortName: existing.ShortName,
+					Existing:  existing,
+					Incoming:  p,
+					Diffs:     diffs,
+				})
+				if conflictMode == "skip" {
+					continue
+				}
 			}
 		}
 
-		_, err := database.DB.Exec(
+		_, err = database.DB.Exec(
 			"INSERT INTO projects ("+projectsInsertCols()+") VALUES ("+placeholders(82)+")",
 			projectsInsertVals(&p)...)
 		if err != nil {
@@ -234,8 +313,13 @@ func (h *Handler) ImportProjects(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"imported": imported, "skipped": skipped, "conflicts": conflicts,
+		"imported": imported, "skipped": skipped, "conflicts": conflictList,
 	})
+}
+
+// formatFloat formats a float64 to string for comparison display.
+func formatFloat(v float64) string {
+	return strconv.FormatFloat(v, 'f', 2, 64)
 }
 
 // ExportProjects exports current filter results to .xlsx.

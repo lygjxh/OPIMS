@@ -28,11 +28,12 @@
           <el-tag :type="row.status === '列入中' ? 'danger' : 'info'">{{ row.status }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="" width="180" fixed="right">
+      <el-table-column label="" width="260" fixed="right">
         <template #default="{ row }">
           <el-button size="small" text @click="openDialog(row)" :disabled="row.status === '已拉出'">{{ $t('common.edit') }}</el-button>
           <el-button v-if="row.status === '列入中'" size="small" text type="warning" @click="delist(row)">{{ $t('blacklist.delist') }}</el-button>
           <el-button size="small" text type="danger" @click="remove(row)" :disabled="row.status === '已拉出'">{{ $t('common.delete') }}</el-button>
+          <el-button size="small" text type="info" @click="showLog(row)">日志</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -90,6 +91,20 @@
         <el-button type="primary" @click="save">{{ $t('common.save') }}</el-button>
       </template>
     </el-dialog>
+
+    <!-- 操作日志弹窗 -->
+    <el-dialog v-model="logVisible" title="操作日志" width="500px">
+      <template v-if="logs.length">
+        <div v-for="log in logs" :key="log.id" class="log-item">
+          <el-tag size="small" :type="log.action === '列入' ? 'danger' : log.action === '拉出' ? 'warning' : log.action === '删除' ? 'danger' : 'info'">
+            {{ log.action }}
+          </el-tag>
+          <span class="log-detail">{{ log.detail || '—' }}</span>
+          <span class="log-time">{{ log.created_at }}</span>
+        </div>
+      </template>
+      <p v-else style="text-align:center;color:#999">暂无操作记录</p>
+    </el-dialog>
   </div>
 </template>
 
@@ -102,6 +117,8 @@ const list = ref<any[]>([])
 const filterCountry = ref('')
 const filterStatus = ref('')
 const dialogVisible = ref(false)
+const logVisible = ref(false)
+const logs = ref<any[]>([])
 const editing = ref<any>({})
 const form = ref<any>({})
 
@@ -156,6 +173,14 @@ async function remove(row: any) {
   load()
 }
 
+async function showLog(row: any) {
+  try {
+    const { data } = await axios.get('/api/blacklist/subcontractor/' + row.id + '/audit')
+    logs.value = data || []
+  } catch { logs.value = [] }
+  logVisible.value = true
+}
+
 function fmtDate(d: any) {
   if (!d) return ''
   if (typeof d === 'string') return d.slice(0, 10)
@@ -184,4 +209,7 @@ onMounted(load)
 :deep(.row-blacklist) { background-color: #ffebee; }
 :deep(.row-restricted) { background-color: #fff3e0; }
 :deep(.row-delisted) { background-color: #f5f5f5; }
+.log-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+.log-detail { flex: 1; color: #606266; }
+.log-time { color: #909399; font-size: 12px; white-space: nowrap; }
 </style>

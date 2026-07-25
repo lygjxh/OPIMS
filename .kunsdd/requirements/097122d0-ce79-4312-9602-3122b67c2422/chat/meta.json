@@ -1,10 +1,14 @@
 {
   "version": 1,
-  "primaryThreadId": "thr_80609ce34e224f24865cb6a294d499a2",
+  "primaryThreadId": "thr_c78545deed854712bb698deeca8b57f8",
   "threads": [
     {
+      "id": "thr_c78545deed854712bb698deeca8b57f8",
+      "updatedAt": "2026-07-25T18:18:32.163Z"
+    },
+    {
       "id": "thr_80609ce34e224f24865cb6a294d499a2",
-      "updatedAt": "2026-07-25T17:07:55.736Z"
+      "updatedAt": "2026-07-25T17:42:20.585Z"
     }
   ]
 }

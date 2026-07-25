@@ -181,6 +181,26 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 导入冲突处理 -->
+    <el-dialog v-model="conflictVisible" title="导入冲突" width="700px">
+      <p style="color:#606266;margin-bottom:12px">以下项目与已有数据冲突（共 {{ conflictItems.length }} 条），请选择处理方式：</p>
+      <div v-for="(c, i) in conflictItems" :key="i" class="conflict-item">
+        <div class="ci-h">冲突 {{ i+1 }}：{{ c.short_name }}</div>
+        <table class="ci-table" v-if="c.diffs && c.diffs.length">
+          <tr><th>字段</th><th>已有值</th><th>新值</th></tr>
+          <tr v-for="d in c.diffs" :key="d.field">
+            <td>{{ d.field }}</td><td class="old">{{ d.old }}</td><td class="new">{{ d.new }}</td>
+          </tr>
+        </table>
+        <div v-else style="color:#999;font-size:13px">（字段无差异）</div>
+      </div>
+      <template #footer>
+        <el-button @click="doImportAfterConflict('skip')">跳过</el-button>
+        <el-button type="primary" @click="doImportAfterConflict('overwrite')">覆盖</el-button>
+        <el-button type="success" @click="doImportAfterConflict('keep_both')">保留两者</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -206,6 +226,9 @@ const DOMESTIC_OPTIONS = ['境内','境外']
 const countries = ref<string[]>([])
 const dialogVisible = ref(false)
 const detailVisible = ref(false)
+const conflictVisible = ref(false)
+const conflictItems = ref<any[]>([])
+const pendingFile = ref<File | null>(null)
 const detail = ref<any>(null)
 const editingId = ref(0)
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -340,17 +363,34 @@ async function del(row: any) {
 }
 
 function importExcel() {
-  ElMessageBox.confirm('导入模式：覆盖将替换已有项目，跳过仅新增', '导入', { confirmButtonText: '覆盖', cancelButtonText: '跳过', type: 'info' }).then(() => { conflictMode.value = 'overwrite'; fileInput.value?.click() }).catch(() => { conflictMode.value = 'skip'; fileInput.value?.click() })
+  fileInput.value?.click()
 }
 async function onFileChange(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (!file) return
-  const fd = new FormData(); fd.append('file', file); fd.append('conflict', conflictMode.value)
+  pendingFile.value = file
+  // First, try with skip mode to detect conflicts
+  const fd = new FormData(); fd.append('file', file); fd.append('conflict', 'skip')
   try {
     const { data } = await axios.post('/api/projects/import', fd)
-    ElMessage.success(`导入 ${data.imported} 条，跳过 ${data.skipped} 条`)
+    if (data.conflicts && data.conflicts.length > 0) {
+      conflictItems.value = data.conflicts
+      conflictVisible.value = true
+    } else {
+      ElMessage.success(`导入 ${data.imported} 条${data.skipped ? '，跳过 ' + data.skipped + ' 条' : ''}`)
+      load()
+    }
+  } catch(e:any){ ElMessage.error('导入失败: ' + (e.response?.data || '')) }
+}
+async function doImportAfterConflict(mode: string) {
+  if (!pendingFile.value) return
+  const fd = new FormData(); fd.append('file', pendingFile.value); fd.append('conflict', mode)
+  try {
+    const { data } = await axios.post('/api/projects/import', fd)
+    ElMessage.success(`导入 ${data.imported} 条${data.skipped ? '，跳过 ' + data.skipped + ' 条' : ''}`)
+    conflictVisible.value = false
     load()
-  } catch(e:any){ ElMessage.error('导入失败') }
+  } catch(e:any){ ElMessage.error('导入失败: ' + (e.response?.data || '')) }
 }
 
 const contracts = ref<any[]>([])
@@ -432,4 +472,10 @@ onMounted(() => { applyRouteQuery(); load() })
 .info-table .k { background: #fafafa; color: #606266; width: 110px; white-space: nowrap; font-weight: 500; }
 .info-table .v { color: #303133; word-break: break-all; }
 .info-table th { background: #fafafa; font-weight: 600; text-align: center; }
+.conflict-item { margin-bottom: 12px; border: 1px solid #ebeef5; border-radius: 6px; padding: 10px; }
+.ci-h { font-weight: 600; margin-bottom: 6px; }
+.ci-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ci-table th, .ci-table td { padding: 4px 8px; border: 1px solid #ebeef5; text-align: left; }
+.ci-table .old { color: #d03b3b; }
+.ci-table .new { color: #2a78d6; }
 </style>

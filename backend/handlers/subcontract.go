@@ -59,7 +59,8 @@ func (h *Handler) SubcontractList(w http.ResponseWriter, r *http.Request) {
 			        ps.tech_leader, ps.tech_leader_approved, ps.tech_leader_status,
 			        ps.safety_officer, ps.safety_officer_approved, ps.safety_officer_status,
 			        ps.contract_compliance, ps.noncompliance_note, ps.remarks,
-			        ps.project_short_name, ps.standardized_profession, ps.profession_category
+			        ps.project_short_name, ps.standardized_profession, ps.profession_category,
+			        COALESCE((SELECT 1 FROM subcontractor_blacklist WHERE sub_full_name=ps.sub_name AND status='列入中' LIMIT 1), 0) as blacklisted
 			 FROM project_subcontract ps `+where+" ORDER BY "+orderBy, args...)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -80,7 +81,8 @@ func (h *Handler) SubcontractList(w http.ResponseWriter, r *http.Request) {
 				&rec.TechLeader, &rec.TechLeaderApproved, &rec.TechLeaderStatus,
 				&rec.SafetyOfficer, &rec.SafetyOfficerApproved, &rec.SafetyOfficerStatus,
 				&rec.ContractCompliance, &rec.NoncomplianceNote, &rec.Remarks,
-				&rec.ProjectShortName, &rec.StandardizedProfession, &rec.ProfessionCategory)
+				&rec.ProjectShortName, &rec.StandardizedProfession, &rec.ProfessionCategory,
+				&rec.Blacklisted)
 			records = append(records, rec)
 			totalAmount += rec.ContractAmount
 		}
@@ -152,8 +154,9 @@ func (h *Handler) SubcontractByID(w http.ResponseWriter, r *http.Request) {
 			        tech_leader, tech_leader_approved, tech_leader_status,
 			        safety_officer, safety_officer_approved, safety_officer_status,
 			        contract_compliance, noncompliance_note, remarks,
-			        project_short_name, standardized_profession, profession_category, is_deleted
-			 FROM project_subcontract WHERE id=?`, id,
+			        project_short_name, standardized_profession, profession_category, is_deleted,
+			        COALESCE((SELECT 1 FROM subcontractor_blacklist WHERE sub_full_name=ps.sub_name AND status='列入中' LIMIT 1), 0) as blacklisted
+			 FROM project_subcontract ps WHERE id=?`, id,
 		).Scan(&rec.ID, &rec.SeqNo, &rec.BranchCompany, &rec.ProjectName, &rec.MainContractAmount,
 			&rec.SubName, &rec.SubTier, &rec.SubProfessionRaw, &rec.SubContractProfession,
 			&rec.SubController, &rec.SubControllerPhone, &rec.ContractNo, &rec.ContractName,
@@ -163,7 +166,8 @@ func (h *Handler) SubcontractByID(w http.ResponseWriter, r *http.Request) {
 			&rec.TechLeader, &rec.TechLeaderApproved, &rec.TechLeaderStatus,
 			&rec.SafetyOfficer, &rec.SafetyOfficerApproved, &rec.SafetyOfficerStatus,
 			&rec.ContractCompliance, &rec.NoncomplianceNote, &rec.Remarks,
-			&rec.ProjectShortName, &rec.StandardizedProfession, &rec.ProfessionCategory, &rec.IsDeleted)
+			&rec.ProjectShortName, &rec.StandardizedProfession, &rec.ProfessionCategory, &rec.IsDeleted,
+			&rec.Blacklisted)
 		if err != nil {
 			http.Error(w, "not found", http.StatusNotFound)
 			return
@@ -273,9 +277,15 @@ func (h *Handler) SubcontractImport(w http.ResponseWriter, r *http.Request) {
 	}
 	defer stmt.Close()
 
+	// Match project_short_name against projects table (best-effort).
+	nameToShort := loadProjectNameMapping()
+
 	imported := 0
 	var errs []string
 	for _, rec := range records {
+		if rec.ProjectName != "" {
+			rec.ProjectShortName = matchProject(rec.ProjectName, nameToShort)
+		}
 		_, err := stmt.Exec(
 			rec.SeqNo, rec.BranchCompany, rec.ProjectName, rec.MainContractAmount,
 			rec.SubName, rec.SubTier, rec.SubProfessionRaw, rec.SubContractProfession,
@@ -421,4 +431,33 @@ func saveUploadFile(r *http.Request, field string) (string, error) {
 func cellName(col, row int) string {
 	name, _ := excelize.CoordinatesToCellName(col, row)
 	return name
+}
+
+// loadProjectNameMapping loads project_name → short_name from the projects table.
+func loadProjectNameMapping() map[string]string {
+	m := map[string]string{}
+	rows, err := database.DB.Query("SELECT project_name, short_name FROM projects WHERE is_deleted=0")
+	if err != nil {
+		return m
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var name, short string
+		rows.Scan(&name, &short)
+		m[name] = short
+	}
+	return m
+}
+
+// matchProject finds the best-matching project short_name for a given name from the ledger.
+func matchProject(name string, db map[string]string) string {
+	if short, ok := db[name]; ok {
+		return short
+	}
+	for pn, short := range db {
+		if strings.Contains(name, pn) || strings.Contains(pn, name) {
+		return short
+		}
+	}
+	return ""
 }

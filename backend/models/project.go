@@ -150,6 +150,7 @@ type SubcontractRecord struct {
 	StandardizedProfession string  `json:"standardized_profession"`
 	ProfessionCategory     string  `json:"profession_category"`
 	IsDeleted              int     `json:"is_deleted"`
+	Blacklisted            bool    `json:"blacklisted"`
 }
 
 // SubcontractorBase represents a subcontractor in the library.
@@ -217,4 +218,27 @@ type MapMarker struct {
 	Lng       float64 `json:"lng"`
 	Country   string  `json:"country"`
 	Status    string  `json:"status"`
+}
+
+// ContractSlice is one data item in the contract distribution donut chart.
+type ContractSlice struct {
+	Name       string  `json:"name"`
+	Amount     float64 `json:"amount"`
+	Count      int     `json:"count"`
+	Percentage float64 `json:"percentage"`
+}
+
+// ContractDistributionResponse is the response for GET /api/dashboard/contract-distribution.
+type ContractDistributionResponse struct {
+	Slices      []ContractSlice `json:"slices"`
+	TotalAmount float64         `json:"total_amount"`
+	TotalCount  int             `json:"total_count"`
+}
+
+// RegionCountryDetail is one country's data in a region drill-down.
+type RegionCountryDetail struct {
+	Name       string  `json:"name"`
+	Amount     float64 `json:"amount"`
+	Count      int     `json:"count"`
+	Percentage float64 `json:"percentage"`
 }

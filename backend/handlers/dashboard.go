@@ -4,11 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
+	"opims/data"
 	"opims/database"
 	"opims/models"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -132,4 +136,164 @@ func copyFile(src, dst string) error {
 
 	_, err = io.Copy(d, s)
 	return err
+}
+
+// ContractDistribution returns contract amount grouped by region or country.
+// GET /api/dashboard/contract-distribution?dim=region&status=在建,未开工
+func (h *Handler) ContractDistribution(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	dim := r.URL.Query().Get("dim")
+	if dim == "" {
+		dim = "region"
+	}
+	rawStatus := r.URL.Query().Get("status")
+
+	conditions := []string{"is_deleted=0", "domestic_overseas='境外'"}
+	args := []interface{}{}
+	if rawStatus != "" && rawStatus != "全部" {
+		parts := strings.Split(rawStatus, ",")
+		ph := make([]string, len(parts))
+		for i, p := range parts {
+			ph[i] = "?"
+			args = append(args, strings.TrimSpace(p))
+		}
+		conditions = append(conditions, "project_status IN ("+strings.Join(ph, ",")+")")
+	}
+	where := strings.Join(conditions, " AND ")
+
+	rows, err := database.DB.Query("SELECT country, contract_amount FROM projects WHERE "+where, args...)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	type entry struct{ name string; amount float64; count int }
+	agg := make(map[string]*entry)
+
+	for rows.Next() {
+		var country string
+		var amt float64
+		if err := rows.Scan(&country, &amt); err != nil {
+			continue
+		}
+		key := country
+		if dim == "region" {
+			key = data.RegionOf(country)
+		}
+		if e, ok := agg[key]; ok {
+			e.amount += amt
+			e.count++
+		} else {
+			agg[key] = &entry{name: key, amount: amt, count: 1}
+		}
+	}
+
+	slices := make([]models.ContractSlice, 0, len(agg))
+	var totalAmount float64
+	var totalCount int
+	for _, e := range agg {
+		totalAmount += e.amount
+		totalCount += e.count
+		slices = append(slices, models.ContractSlice{
+			Name: e.name, Amount: math.Round(e.amount*100) / 100, Count: e.count,
+		})
+	}
+
+	sort.Slice(slices, func(i, j int) bool { return slices[i].Amount > slices[j].Amount })
+
+	if len(slices) > 7 {
+		keep := slices[:7]
+		var ta float64
+		var tc int
+		for _, s := range slices[7:] {
+			ta += s.Amount
+			tc += s.Count
+		}
+		keep = append(keep, models.ContractSlice{
+			Name: fmt.Sprintf("其他 %d 项", tc), Amount: math.Round(ta*100) / 100, Count: tc,
+		})
+		slices = keep
+	}
+
+	for i := range slices {
+		if totalAmount > 0 {
+			slices[i].Percentage = math.Round(slices[i].Amount/totalAmount*10000) / 100
+		}
+	}
+
+	json.NewEncoder(w).Encode(models.ContractDistributionResponse{
+		Slices: slices, TotalAmount: math.Round(totalAmount*100) / 100, TotalCount: totalCount,
+	})
+}
+
+// RegionDetail returns per-country breakdown for a given region.
+// GET /api/dashboard/region-detail/{region}?status=在建,未开工
+func (h *Handler) RegionDetail(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	region := strings.TrimPrefix(r.URL.Path, "/api/dashboard/region-detail/")
+	region = strings.TrimSuffix(region, "/")
+	if region == "" {
+		http.Error(w, "region required", http.StatusBadRequest)
+		return
+	}
+
+	var countries []string
+	for reg, cs := range data.RegionCountries {
+		if reg == region { countries = cs; break }
+	}
+	if countries == nil {
+		http.Error(w, "region not found", http.StatusNotFound)
+		return
+	}
+
+	rawStatus := r.URL.Query().Get("status")
+	conditions := []string{"is_deleted=0", "domestic_overseas='境外'"}
+	args := []interface{}{}
+	if rawStatus != "" && rawStatus != "全部" {
+		parts := strings.Split(rawStatus, ",")
+		ph := make([]string, len(parts))
+		for i, p := range parts {
+			ph[i] = "?"
+			args = append(args, strings.TrimSpace(p))
+		}
+		conditions = append(conditions, "project_status IN ("+strings.Join(ph, ",")+")")
+	}
+
+	cph := make([]string, len(countries))
+	for i := range countries {
+		cph[i] = "?"
+		args = append(args, countries[i])
+	}
+	conditions = append(conditions, "country IN ("+strings.Join(cph, ",")+")")
+	where := strings.Join(conditions, " AND ")
+
+	rows, err := database.DB.Query("SELECT country, SUM(contract_amount), COUNT(*) FROM projects WHERE "+where+" GROUP BY country", args...)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var details []models.RegionCountryDetail
+	var totalAmount float64
+	var totalCount int
+	for rows.Next() {
+		var d models.RegionCountryDetail
+		if err := rows.Scan(&d.Name, &d.Amount, &d.Count); err != nil { continue }
+		d.Amount = math.Round(d.Amount*100) / 100
+		totalAmount += d.Amount
+		totalCount += d.Count
+		details = append(details, d)
+	}
+
+	for i := range details {
+		if totalAmount > 0 {
+			details[i].Percentage = math.Round(details[i].Amount/totalAmount*10000) / 100
+		}
+	}
+
+	json.NewEncoder(w).Encode(details)
 }
