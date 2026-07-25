@@ -60,6 +60,43 @@
           <el-descriptions-item v-if="detail.reg_address" label="注册地址" :span="2">{{ detail.reg_address }}</el-descriptions-item>
           <el-descriptions-item v-if="detail.reg_capital" label="注册资本">{{ detail.reg_capital }}</el-descriptions-item>
         </el-descriptions>
+
+        <!-- 黑名单状态 -->
+        <div v-if="blStatus" class="bl-section" style="margin-top:12px">
+          <el-tag v-if="blStatus === '列入中'" type="danger" effect="dark" size="large">
+            ⚠ 黑名单（列入中）
+          </el-tag>
+          <el-tag v-else type="info" effect="plain" size="large">
+            黑名单（{{ blStatus }}）
+          </el-tag>
+          <span style="margin-left:8px;color:#606266;font-size:13px">
+            {{ blLevel ? '限制等级:'+blLevel : '' }} {{ blDate ? '列入:'+blDate : '' }} {{ blReason ? '原因:'+blReason : '' }}
+          </span>
+        </div>
+
+        <!-- 关联当地公司黑名单提示 -->
+        <div v-if="localBL.length" style="margin-top:12px">
+          <el-alert :title="'关联当地公司已列入黑名单：' + localBL.join(', ')" type="warning" show-icon :closable="false" />
+        </div>
+
+        <!-- 合作历史 -->
+        <div style="margin-top:16px">
+          <div style="font-weight:600;font-size:14px;margin-bottom:8px">
+            合作历史（{{ detailProjects.length }} 个项目）
+          </div>
+          <el-table :data="detailProjects" size="small" max-height="300" stripe v-if="detailProjects.length">
+            <el-table-column prop="project_short_name" label="项目简称" width="120" />
+            <el-table-column prop="project_name" label="项目名称" min-width="160" show-overflow-tooltip />
+            <el-table-column prop="start_date" label="开工日期" width="90" />
+            <el-table-column prop="end_date" label="完工日期" width="90" />
+            <el-table-column prop="contract_no" label="合同号" width="140" show-overflow-tooltip />
+            <el-table-column label="合同额" width="100" align="right">
+              <template #default="{ row }">{{ row.contract_amount ? row.contract_amount.toLocaleString() : '-' }}</template>
+            </el-table-column>
+            <el-table-column prop="project_status" label="状态" width="80" />
+          </el-table>
+          <p v-else style="color:#999;font-size:13px">暂无合作历史记录</p>
+        </div>
       </template>
     </el-dialog>
 
@@ -124,6 +161,12 @@ const filterCategory = ref('')
 const keyword = ref('')
 const detailVisible = ref(false)
 const detail = ref<any>(null)
+const detailProjects = ref<any[]>([])
+const blStatus = ref('')
+const blLevel = ref('')
+const blDate = ref('')
+const blReason = ref('')
+const localBL = ref<string[]>([])
 const editVisible = ref(false)
 const editing = ref<any>({})
 const form = ref<any>({})
@@ -154,7 +197,15 @@ async function load() {
 async function showDetail(row: any) {
   try {
     const { data } = await axios.get('/api/subcontractors/' + row.id)
-    detail.value = data
+    // New format: { base: {...}, projects: [...], blacklist_status: ... }
+    // Old format: direct object (fallback)
+    detail.value = data.base || data
+    detailProjects.value = data.projects || []
+    blStatus.value = data.blacklist_status || ''
+    blLevel.value = data.restrict_level || ''
+    blDate.value = data.list_date || ''
+    blReason.value = data.list_reason || ''
+    localBL.value = data.local_blacklisted || []
     detailVisible.value = true
   } catch { ElMessage.error('加载详情失败') }
 }

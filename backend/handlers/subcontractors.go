@@ -123,7 +123,57 @@ func (h *Handler) SubcontractorsByID(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
-		json.NewEncoder(w).Encode(b)
+
+		// Fetch cooperation history
+		pRows, err := database.DB.Query(
+			`SELECT project_short_name, project_name, start_date, end_date,
+			        contract_no, contract_amount, scope, profession_category, profession,
+			        other_professions, project_status
+			 FROM subcontractor_projects WHERE sub_short_name=? ORDER BY start_date DESC`, b.ShortName)
+		projects := []models.SubcontractorProject{}
+		if err == nil {
+			defer pRows.Close()
+			for pRows.Next() {
+				var sp models.SubcontractorProject
+				pRows.Scan(&sp.ProjectShortName, &sp.ProjectName, &sp.StartDate, &sp.EndDate,
+					&sp.ContractNo, &sp.ContractAmount, &sp.Scope,
+					&sp.ProfessionCategory, &sp.Profession, &sp.OtherProfessions, &sp.ProjectStatus)
+				projects = append(projects, sp)
+			}
+		}
+
+		// Check blacklist status
+		var blStatus, blLevel, blDate, blReason string
+		database.DB.QueryRow(
+			`SELECT status, restrict_level, list_date, list_reason FROM subcontractor_blacklist WHERE sub_full_name=? ORDER BY id DESC LIMIT 1`,
+			b.FullName).Scan(&blStatus, &blLevel, &blDate, &blReason)
+
+		// Check linked local subsidiaries blacklist status
+		var localBlacklisted []string
+		if b.RegistrationType == "国内" {
+			lRows, _ := database.DB.Query(
+				`SELECT sb.short_name FROM subcontractors_base sb
+				 JOIN subcontractor_blacklist bl ON bl.sub_full_name=sb.full_name AND bl.status='列入中'
+				 WHERE sb.parent_short_name=? AND sb.registration_type='当地注册'`, b.ShortName)
+			if lRows != nil {
+				defer lRows.Close()
+				for lRows.Next() {
+					var n string
+					lRows.Scan(&n)
+					localBlacklisted = append(localBlacklisted, n)
+				}
+			}
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"base":              b,
+			"projects":          projects,
+			"blacklist_status":  blStatus,
+			"restrict_level":    blLevel,
+			"list_date":         blDate,
+			"list_reason":       blReason,
+			"local_blacklisted": localBlacklisted,
+		})
 
 	case "PUT":
 		var b models.SubcontractorBase
