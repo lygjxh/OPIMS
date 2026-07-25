@@ -67,30 +67,59 @@
       </el-card>
     </div>
 
-    <!-- 合同额概览 -->
+    <!-- 合同额概览：可按国别 / 按地区切换 -->
     <el-card class="amount-card">
       <template #header>
         <div class="card-head">
-          <span>合同额分布 · 按国别</span>
+          <div class="head-left">
+            <span>合同额分布</span>
+            <el-radio-group v-model="groupBy" size="small" class="group-switch">
+              <el-radio-button label="region">按地区</el-radio-button>
+              <el-radio-button label="country">按国别</el-radio-button>
+            </el-radio-group>
+          </div>
           <div class="amount-total">
-            合计 <b>{{ fmtYi(totalAmount) }}</b> 亿元 · {{ byCountry.length }} 个国别
+            合计 <b>{{ fmtYi(totalAmount) }}</b> 亿元 ·
+            {{ grouped.length }} 个{{ groupBy === 'region' ? '地区' : '国别' }}
           </div>
         </div>
       </template>
 
-      <div v-if="byCountry.length" class="bars">
-        <div v-for="c in byCountry" :key="c.country" class="bar-row"
-          :title="`${c.country}：${fmtYi(c.amount)} 亿元 · ${c.count} 个项目`">
-          <span class="bar-name">{{ c.country }}</span>
+      <div v-if="grouped.length" class="bars">
+        <div v-for="g in grouped" :key="g.name" class="bar-row"
+          :class="{ clickable: groupBy === 'region' && g.name !== '未分类' }"
+          :title="barTitle(g)"
+          @click="drillDown(g)">
+          <span class="bar-name">{{ g.name }}</span>
           <div class="bar-track">
-            <span class="bar-fill" :style="{ width: amtWidth(c.amount) }"></span>
+            <span class="bar-fill" :style="{ width: amtWidth(g.amount) }"></span>
+          </div>
+          <span class="bar-val">{{ fmtYi(g.amount) }}<em>亿</em></span>
+          <span class="bar-cnt">{{ g.count }}个</span>
+        </div>
+      </div>
+      <p v-else class="empty-hint">暂无合同额数据</p>
+
+      <p v-if="groupBy === 'region'" class="bar-tip">
+        <el-icon><InfoFilled /></el-icon>
+        点击地区可展开该地区包含的国别
+      </p>
+    </el-card>
+
+    <!-- 地区下钻弹窗 -->
+    <el-dialog v-model="drillVisible" :title="`${drillRegion} · 国别明细`" width="520px">
+      <div class="bars">
+        <div v-for="c in drillRows" :key="c.name" class="bar-row"
+          :title="`${c.name}：${fmtYi(c.amount)} 亿元 · ${c.count} 个项目`">
+          <span class="bar-name">{{ c.name }}</span>
+          <div class="bar-track">
+            <span class="bar-fill" :style="{ width: drillWidth(c.amount) }"></span>
           </div>
           <span class="bar-val">{{ fmtYi(c.amount) }}<em>亿</em></span>
           <span class="bar-cnt">{{ c.count }}个</span>
         </div>
       </div>
-      <p v-else class="empty-hint">暂无合同额数据</p>
-    </el-card>
+    </el-dialog>
   </div>
 </template>
 
@@ -108,6 +137,7 @@ import {
   LocationInformation, InfoFilled,
 } from '@element-plus/icons-vue'
 import { COUNTRY_COORDS, spreadOffset } from '../data/countryCoords'
+import { regionOf } from '../data/regions'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -149,21 +179,49 @@ function gotoList(status: string) {
   router.push({ path: '/projects', query: status ? { status } : {} })
 }
 
-/* ---- 合同额按国别聚合（单一色调，长度即量级） ---- */
-const byCountry = computed(() => {
-  const m = new Map<string, { country: string; amount: number; count: number }>()
-  for (const p of projects.value) {
-    const key = p.country || '其他'
-    const cur = m.get(key) || { country: key, amount: 0, count: 0 }
+/* ---- 合同额聚合：可按地区或国别（单一色调，长度即量级） ---- */
+type Bucket = { name: string; amount: number; count: number }
+
+const groupBy = ref<'region' | 'country'>('region')
+
+/** 按指定维度聚合项目合同额 */
+function aggregate(dim: 'region' | 'country', source = projects.value): Bucket[] {
+  const m = new Map<string, Bucket>()
+  for (const p of source) {
+    const country = p.country || '其他'
+    const key = dim === 'region' ? regionOf(country) : country
+    const cur = m.get(key) || { name: key, amount: 0, count: 0 }
     cur.amount += Number(p.contract_amount) || 0
     cur.count += 1
     m.set(key, cur)
   }
   return [...m.values()].sort((a, b) => b.amount - a.amount)
-})
-const totalAmount = computed(() => byCountry.value.reduce((s, c) => s + c.amount, 0))
-const maxAmount = computed(() => Math.max(...byCountry.value.map(c => c.amount), 1))
+}
+
+const grouped = computed(() => aggregate(groupBy.value))
+const totalAmount = computed(() => grouped.value.reduce((s, g) => s + g.amount, 0))
+const maxAmount = computed(() => Math.max(...grouped.value.map(g => g.amount), 1))
 function amtWidth(v: number) { return Math.max(1.5, (v / maxAmount.value) * 100) + '%' }
+
+function barTitle(g: Bucket) {
+  const base = `${g.name}：${fmtYi(g.amount)} 亿元 · ${g.count} 个项目`
+  return groupBy.value === 'region' && g.name !== '未分类' ? base + '（点击查看国别明细）' : base
+}
+
+/* ---- 地区下钻 ---- */
+const drillVisible = ref(false)
+const drillRegion = ref('')
+const drillRows = ref<Bucket[]>([])
+
+function drillDown(g: Bucket) {
+  if (groupBy.value !== 'region' || g.name === '未分类') return
+  drillRegion.value = g.name
+  drillRows.value = aggregate('country', projects.value.filter(p => regionOf(p.country || '其他') === g.name))
+  drillVisible.value = true
+}
+const drillMax = computed(() => Math.max(...drillRows.value.map(r => r.amount), 1))
+function drillWidth(v: number) { return Math.max(1.5, (v / drillMax.value) * 100) + '%' }
+
 /** 万元 → 亿元 */
 function fmtYi(wan: number) {
   const yi = wan / 10000
@@ -336,8 +394,16 @@ function addMarker(lat: number, lng: number, name: string, status: string, count
 .shortcut:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 2px; }
 
 /* ---- 合同额条形图（单一色调；长度编码量级） ---- */
+.head-left { display: flex; align-items: center; gap: 14px; }
+.group-switch { --el-border-radius-base: 7px; }
 .amount-total { font-size: 12.5px; color: var(--c-text-muted); font-weight: 400; }
 .amount-total b { color: var(--c-text-strong); font-size: 15px; }
+.bar-row.clickable { cursor: pointer; }
+.bar-row.clickable:hover .bar-name { color: var(--c-primary); font-weight: 600; }
+.bar-tip {
+  display: flex; align-items: center; gap: 5px; margin: 12px 0 0;
+  font-size: 11.5px; color: var(--c-text-muted);
+}
 .bars { display: flex; flex-direction: column; gap: 2px; }
 .bar-row {
   display: grid; grid-template-columns: 92px 1fr 82px 48px;
