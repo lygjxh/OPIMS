@@ -1,6 +1,8 @@
 # 编译产物
 backend/opims.exe
+backend/opims.exe~
 backend/frontend-dist/
+backend/*.log
 
 # 数据库（含敏感数据，不提交）
 *.db

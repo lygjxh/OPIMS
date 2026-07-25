@@ -90,7 +90,7 @@ func (h *Handler) listProjects(w http.ResponseWriter, r *http.Request) {
 
 	var projects []models.Project
 	for rows.Next() {
-		if p := scanProjectFromRows(rows); p != nil {
+		if p := scanProject(rows); p != nil {
 			projects = append(projects, *p)
 		}
 	}
@@ -265,7 +265,7 @@ func (h *Handler) ExportProjects(w http.ResponseWriter, r *http.Request) {
 
 	var projects []models.Project
 	for rows.Next() {
-		if p := scanProjectFromRows(rows); p != nil {
+		if p := scanProject(rows); p != nil {
 			projects = append(projects, *p)
 		}
 	}

@@ -1,7 +1,9 @@
 package services
 
 import (
+	"io/fs"
 	"log"
+	"path/filepath"
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
@@ -67,7 +69,15 @@ func (fw *FileWatcher) Start() {
 }
 
 func (fw *FileWatcher) addRecursive(dir string) {
-	fw.watcher.Add(dir)
+	filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			fw.watcher.Add(path)
+		}
+		return nil
+	})
 }
 
 func (fw *FileWatcher) Stop() {

@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"encoding/json"
 	"net/http"
 	"opims/models"
@@ -26,41 +25,13 @@ func NewHandler(rootPath string, fw *services.FileWatcher) *Handler {
 
 // ---- helpers ----
 
-func scanProjectFromRows(rows *sql.Rows) *models.Project {
-	var p models.Project
-	var ca, ua string
-	rows.Scan(&p.ID, &p.ShortName, &p.ContractNo, &p.ProjectName, &p.ProjectType,
-		&p.ProjectStatus, &p.ImplementUnit, &p.ContractAmount, &p.BudgetAmount,
-		&p.ContractScope, &p.KeyPoints, &p.DomesticOverseas,
-		&p.Province, &p.City, &p.Address, &p.Country,
-		&p.ContractStartYear, &p.ContractStartMonth, &p.ContractEndYear, &p.ContractEndMonth,
-		&p.ContractDuration, &p.ActualStartYear, &p.ActualStartMonth,
-		&p.PlanEndYear, &p.PlanEndMonth, &p.ActualDuration,
-		&p.CompletionYear, &p.CompletionMonth, &p.RunningStatus, &p.AbnormalReason,
-		&p.ProgressStatus, &p.Issues,
-		&p.CompletedOutput, &p.CompletePercent, &p.ProgressSummary,
-		&p.CumReceivable, &p.CumReceived, &p.OwedAmount,
-		&p.GPSLat, &p.GPSLng,
-		&p.PMContract, &p.PMAppointed, &p.PMOnsite, &p.PMPhone, &p.PMBuilder, &p.PMSafetyCert,
-		&p.TechLeadAppointed, &p.TechLeadOnsite, &p.TechLeadPhone, &p.TechLeadTitle,
-		&p.QualityMgrAppointed, &p.QualityMgrOnsite, &p.QualityMgrPhone, &p.QualityMgrCert,
-		&p.HSEAppointed, &p.HSEOnsite, &p.HSEPhone, &p.HSECert,
-		&p.CostMgrAppointed, &p.CostMgrOnsite, &p.CostMgrPhone, &p.CostMgrCert,
-		&p.QualityKeyProcess, &p.QualityMeasures,
-		&p.SafetyCost, &p.SafetyCostSpent, &p.SafetyCostCum,
-		&p.SafetyMajorHazard, &p.SafetyHazardMeasure, &p.SafetyRiskSource, &p.SafetyRiskMeasure,
-		&p.OwnerUnit, &p.OwnerContact, &p.OwnerPhone,
-		&p.DesignUnit, &p.DesignContact, &p.DesignPhone,
-		&p.SupervisionUnit, &p.SupervisionContact, &p.SupervisionPhone,
-		&p.Reporter, &p.PersonnelMgmt, &p.PersonnelLabor,
-		&p.IsDeleted, &ca, &ua)
-	return &p
-}
+// scanner is satisfied by both *sql.Row and *sql.Rows.
+type scanner interface{ Scan(dest ...any) error }
 
-func scanProject(row *sql.Row) *models.Project {
+func scanProject(s scanner) *models.Project {
 	var p models.Project
 	var ca, ua string
-	row.Scan(&p.ID, &p.ShortName, &p.ContractNo, &p.ProjectName, &p.ProjectType,
+	s.Scan(&p.ID, &p.ShortName, &p.ContractNo, &p.ProjectName, &p.ProjectType,
 		&p.ProjectStatus, &p.ImplementUnit, &p.ContractAmount, &p.BudgetAmount,
 		&p.ContractScope, &p.KeyPoints, &p.DomesticOverseas,
 		&p.Province, &p.City, &p.Address, &p.Country,
@@ -124,9 +95,15 @@ type nameMapping struct{ ShortName, ContractNo string }
 
 func loadNameMapping(rootPath string) map[string]nameMapping {
 	mapping := map[string]nameMapping{}
+	// Look for the name mapping file in the root path (same dir as the import Excel).
+	// Falls back to a secondary search path if not found.
 	paths := []string{
 		filepath.Join(rootPath, "海外项目简称.xlsx"),
-		`D:\WPS云盘\186113660\WPS云盘\OneDrive - 中国化学工程股份有限公司\海外运营中心\06.Received File\01.项目管理情况汇总表\海外项目简称.xlsx`,
+	}
+	// Also try relative to the import file's known location
+	altPath := filepath.Join(rootPath, "..", "01.项目管理情况汇总表", "海外项目简称.xlsx")
+	if abs, err := filepath.Abs(altPath); err == nil {
+		paths = append(paths, abs)
 	}
 	var f *excelize.File
 	var err error

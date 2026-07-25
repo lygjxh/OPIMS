@@ -44,17 +44,15 @@ func main() {
 	var rootPath string
 	row := database.DB.QueryRow("SELECT value FROM app_config WHERE key='file_root_path'")
 	if err := row.Scan(&rootPath); err != nil || rootPath == "" {
-		// Try default project files location
-		defaultRoot := `D:\WPS云盘\186113660\WPS云盘\OneDrive - 中国化学工程股份有限公司\海外运营中心\01.Project Files`
-		if _, err := os.Stat(defaultRoot); err == nil {
-			rootPath = defaultRoot
-			database.DB.Exec("UPDATE app_config SET value=? WHERE key='file_root_path'", rootPath)
-		} else {
-			rootPath = baseDir
-		}
+		// First run: no root configured yet, default to exe directory.
+		// User must set the correct path via the UI (项目文件 → 设置根目录).
+		rootPath = baseDir
 	}
 
 	fw := services.NewFileWatcher(rootPath)
+	fw.OnChange(func(path string) {
+		log.Println("file changed:", path)
+	})
 	fw.Start()
 	defer fw.Stop()
 

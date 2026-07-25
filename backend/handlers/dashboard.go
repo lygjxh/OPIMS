@@ -65,6 +65,9 @@ func (h *Handler) Backup(w http.ResponseWriter, r *http.Request) {
 	filename := fmt.Sprintf("opims_backup_%s.db", timestamp)
 	dest := filepath.Join(body.Path, filename)
 
+	// Flush WAL before copy to avoid losing recent writes
+	database.DB.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
+
 	if err := copyFile(database.DBPath(), dest); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
