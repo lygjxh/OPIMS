@@ -65,6 +65,14 @@ func (h *Handler) Backup(w http.ResponseWriter, r *http.Request) {
 	filename := fmt.Sprintf("opims_backup_%s.db", timestamp)
 	dest := filepath.Join(body.Path, filename)
 
+	// 数据库运行在 WAL 模式，最近的写入可能还在 -wal 文件里没落盘。
+	// 备份只复制 .db 主文件，故先做 checkpoint 把 WAL 内容合并进主库，
+	// 否则备份会缺少最新几条改动。
+	if _, err := database.DB.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+		http.Error(w, "checkpoint failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	if err := copyFile(database.DBPath(), dest); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

@@ -98,9 +98,12 @@ type nameMapping struct{ ShortName, ContractNo string }
 
 func loadNameMapping(rootPath string) map[string]nameMapping {
 	mapping := map[string]nameMapping{}
+	// 优先在文件根目录下查找简称映射表；找不到时再试同级的
+	// 「01.项目管理情况汇总表」目录（汇总表的惯用存放位置）。
+	// 不使用任何绝对路径，换机器/换目录靠「设置根目录」功能适配。
 	paths := []string{
 		filepath.Join(rootPath, "海外项目简称.xlsx"),
-		`D:\WPS云盘\186113660\WPS云盘\OneDrive - 中国化学工程股份有限公司\海外运营中心\06.Received File\01.项目管理情况汇总表\海外项目简称.xlsx`,
+		filepath.Join(rootPath, "..", "01.项目管理情况汇总表", "海外项目简称.xlsx"),
 	}
 	var f *excelize.File
 	var err error

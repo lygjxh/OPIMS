@@ -44,14 +44,9 @@ func main() {
 	var rootPath string
 	row := database.DB.QueryRow("SELECT value FROM app_config WHERE key='file_root_path'")
 	if err := row.Scan(&rootPath); err != nil || rootPath == "" {
-		// Try default project files location
-		defaultRoot := `D:\WPS云盘\186113660\WPS云盘\OneDrive - 中国化学工程股份有限公司\海外运营中心\01.Project Files`
-		if _, err := os.Stat(defaultRoot); err == nil {
-			rootPath = defaultRoot
-			database.DB.Exec("UPDATE app_config SET value=? WHERE key='file_root_path'", rootPath)
-		} else {
-			rootPath = baseDir
-		}
+		// 首次运行：尚未配置根目录，先落在 exe 所在目录，
+		// 由用户通过界面「项目文件 → 设置根目录」指向实际位置。
+		rootPath = baseDir
 	}
 
 	rootDir := services.NewRootDir(rootPath)
