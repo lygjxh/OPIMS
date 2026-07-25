@@ -6,6 +6,7 @@
         <el-option v-for="t in TYPES" :key="t" :label="t" :value="t" />
       </el-select>
       <el-select v-model="filters.status" placeholder="项目状态" clearable style="width:130px" @change="load">
+        <el-option label="全部状态" value="all" />
         <el-option v-for="s in STATUSES" :key="s" :label="s" :value="s" />
       </el-select>
       <el-select v-model="filters.domestic" placeholder="境内/境外" clearable style="width:110px" @change="load">
@@ -21,26 +22,42 @@
       <input ref="fileInput" type="file" accept=".xlsx" style="display:none" @change="onFileChange" />
     </div>
 
-    <el-table :data="projects" stripe v-loading="loading" style="flex:1" @row-click="showDetail">
-      <el-table-column prop="country" label="国别" width="120" align="center" fixed />
-      <el-table-column prop="short_name" label="项目简称" width="180" />
-      <el-table-column prop="implement_unit" label="实施单位" width="130" align="center" show-overflow-tooltip />
-      <el-table-column prop="project_name" label="项目名称" min-width="280" show-overflow-tooltip />
-      <el-table-column prop="contract_amount" label="合同额(万元)" width="150" align="right" class-name="col-amount">
-        <template #default="{ row }">{{ fmtMoney(row.contract_amount) }}</template>
-      </el-table-column>
-      <el-table-column label="合同开工" width="100">
-        <template #default="{ row }">{{ fmtDate(row.contract_start_year, row.contract_start_month) }}</template>
-      </el-table-column>
-      <el-table-column label="合同竣工" width="100">
-        <template #default="{ row }">{{ fmtDate(row.contract_end_year, row.contract_end_month) }}</template>
-      </el-table-column>
-      <el-table-column prop="project_status" label="状态" width="80">
+    <div class="list-meta">
+      <span>共 <b>{{ projects.length }}</b> 个项目<template v-if="projects.length">，合同额合计 <b>{{ fmtYi(sumAmount) }}</b> 亿元</template></span>
+      <span v-if="activeFilterText" class="filter-chip">
+        {{ activeFilterText }}
+        <el-icon class="chip-x" @click="clearFilters"><Close /></el-icon>
+      </span>
+    </div>
+
+    <el-table :data="pagedProjects" stripe v-loading="loading" style="flex:1"
+      :default-sort="{ prop: 'contract_amount', order: 'descending' }"
+      @row-click="showDetail">
+      <el-table-column prop="country" label="国别" width="106" align="center" fixed sortable />
+      <el-table-column prop="short_name" label="项目简称" min-width="170" show-overflow-tooltip />
+      <el-table-column prop="implement_unit" label="实施单位" width="112" align="center" show-overflow-tooltip />
+      <el-table-column prop="project_name" label="项目名称" min-width="230" show-overflow-tooltip />
+      <el-table-column prop="contract_amount" label="合同额" width="130" align="right"
+        sortable :sort-method="(a:any,b:any)=>Number(a.contract_amount)-Number(b.contract_amount)"
+        class-name="col-amount">
         <template #default="{ row }">
-          <el-tag :type="statusTag(row.project_status)" size="small">{{ row.project_status }}</el-tag>
+          <span class="amt">{{ fmtAmount(row.contract_amount) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="140" fixed="right">
+      <el-table-column label="合同开工" width="96" align="center">
+        <template #default="{ row }">{{ fmtDate(row.contract_start_year, row.contract_start_month) }}</template>
+      </el-table-column>
+      <el-table-column label="合同竣工" width="96" align="center">
+        <template #default="{ row }">{{ fmtDate(row.contract_end_year, row.contract_end_month) }}</template>
+      </el-table-column>
+      <el-table-column prop="project_status" label="状态" width="96" align="center" sortable>
+        <template #default="{ row }">
+          <span class="st" :style="{ '--st': statusColor(row.project_status) }">
+            <i :class="'st-mk st-' + statusShape(row.project_status)"></i>{{ row.project_status || '-' }}
+          </span>
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" width="124" fixed="right" align="center">
         <template #default="{ row }">
           <el-button text type="primary" size="small" @click.stop="showDialog(row)">编辑</el-button>
           <el-divider direction="vertical" />
@@ -48,6 +65,13 @@
         </template>
       </el-table-column>
     </el-table>
+
+    <el-pagination v-if="projects.length > pageSize" class="pager"
+      layout="total, sizes, prev, pager, next, jumper"
+      :total="projects.length" :page-size="pageSize" :current-page="page"
+      :page-sizes="[20, 50, 100, 200]"
+      @current-change="(p:number)=>page=p"
+      @size-change="(s:number)=>{ pageSize=s; page=1 }" />
 
     <!-- Edit Dialog -->
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑项目' : '新建项目'" width="700px">
@@ -159,11 +183,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Close } from '@element-plus/icons-vue'
 
+const route = useRoute()
 const projects = ref<any[]>([])
+const page = ref(1)
+const pageSize = ref(50)
 const loading = ref(false)
 const conflictMode = ref('skip')
 const search = ref('')
@@ -186,9 +215,42 @@ const emptyForm = () => ({
 })
 const form = ref(emptyForm())
 
+/* 状态 → 颜色 + 形状（形状是颜色之外的第二重编码，红绿色盲同样可辨） */
+const STATUS_STYLE: Record<string, { color: string; shape: string }> = {
+  '在建':   { color: '#2a78d6', shape: 'dot' },
+  '未开工': { color: '#eda100', shape: 'ring' },
+  '停工':   { color: '#d03b3b', shape: 'square' },
+  '完工':   { color: '#0ca30c', shape: 'small' },
+}
+const statusColor = (s: string) => STATUS_STYLE[s]?.color || '#94a3b8'
+const statusShape = (s: string) => STATUS_STYLE[s]?.shape || 'dot'
 function statusTag(s: string) {
   const m: Record<string,string> = {'未开工':'warning','在建':'','停工':'danger','完工':'success'}
   return m[s]||''
+}
+
+/* 分页 + 统计 */
+const pagedProjects = computed(() => {
+  const start = (page.value - 1) * pageSize.value
+  return projects.value.slice(start, start + pageSize.value)
+})
+const sumAmount = computed(() =>
+  projects.value.reduce((s, p) => s + (Number(p.contract_amount) || 0), 0))
+
+const activeFilterText = computed(() => {
+  const f = filters.value
+  const parts: string[] = []
+  if (f.status) parts.push('状态：' + (f.status === 'all' ? '全部' : f.status))
+  if (f.type) parts.push('类型：' + f.type)
+  if (f.country) parts.push('国别：' + f.country)
+  if (f.domestic) parts.push(f.domestic)
+  if (search.value) parts.push('关键词：' + search.value)
+  return parts.join(' · ')
+})
+function clearFilters() {
+  filters.value = { type: '', status: '', domestic: '', country: '' }
+  search.value = ''
+  load()
 }
 
 function fmtDate(y:number,m:number) {
@@ -196,10 +258,19 @@ function fmtDate(y:number,m:number) {
   return `${y}-${String(m||1).padStart(2,'0')}`
 }
 
-function fmtMoney(v: number | string) {
-  const n = Number(v)
-  if (!n) return '0'
-  return n.toLocaleString('en-US')
+/** 万元 → 亿元（大额更易读）；不足 1 亿仍显示万元 */
+function fmtAmount(v: number | string) {
+  const n = Number(v) || 0
+  if (n === 0) return '-'
+  if (n >= 10000) {
+    const yi = n / 10000
+    return (yi >= 100 ? yi.toFixed(0) : yi >= 10 ? yi.toFixed(1) : yi.toFixed(2)) + ' 亿'
+  }
+  return n.toLocaleString('en-US') + ' 万'
+}
+function fmtYi(wan: number) {
+  const yi = wan / 10000
+  return yi >= 100 ? yi.toFixed(0) : yi >= 10 ? yi.toFixed(1) : yi.toFixed(2)
 }
 
 function fmtDMS(lat:number, lng:number) {
@@ -227,8 +298,16 @@ async function load() {
     projects.value = data.projects || []
     countries.value = data.countries || []
   } catch(e){ projects.value=[]; countries.value=[] }
+  page.value = 1
   loading.value=false
 }
+
+// 支持从首页 KPI 卡片跳转带来的 ?status=xxx
+function applyRouteQuery() {
+  const s = route.query.status
+  filters.value.status = typeof s === 'string' ? s : ''
+}
+watch(() => route.query.status, () => { applyRouteQuery(); load() })
 
 function showDetail(row: any) { detail.value = row; detailVisible.value = true }
 
@@ -294,14 +373,41 @@ async function exportExcel() {
   } catch{}
 }
 
-onMounted(load)
+onMounted(() => { applyRouteQuery(); load() })
 </script>
 
 <style scoped>
 .project-list { display: flex; flex-direction: column; gap: 12px; height: 100%; }
 .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 :deep(.el-table__row) { cursor: pointer; }
-:deep(.col-amount .cell) { padding-right: 24px !important; }
+:deep(.col-amount .cell) { padding-right: 14px !important; }
+
+/* 统计条 */
+.list-meta {
+  display: flex; align-items: center; gap: 12px;
+  font-size: 12.5px; color: var(--c-text-muted); flex-wrap: wrap;
+}
+.list-meta b { color: var(--c-text-strong); font-size: 14px; }
+.filter-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #eef4ff; border: 1px solid var(--c-border);
+  color: var(--c-primary-700); border-radius: 20px; padding: 3px 10px; font-size: 12px;
+}
+.chip-x { cursor: pointer; font-size: 12px; }
+.chip-x:hover { color: var(--c-status-suspended); }
+
+/* 合同额：等宽数字便于纵向比对 */
+.amt { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--c-text-strong); }
+
+/* 状态：色块 + 文字（不单靠颜色） */
+.st { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--c-text); }
+.st-mk { width: 9px; height: 9px; flex-shrink: 0; background: var(--st); }
+.st-dot { border-radius: 50%; }
+.st-ring { border-radius: 50%; background: #fff; border: 2.5px solid var(--st); }
+.st-square { border-radius: 2px; }
+.st-small { border-radius: 50%; width: 6px; height: 6px; }
+
+.pager { justify-content: flex-end; padding-top: 4px; }
 .detail-scroll { max-height: 70vh; overflow-y: auto; padding-right: 4px; }
 .card-group { margin-bottom: 12px; border: 1px solid #ebeef5; border-radius: 6px; overflow: hidden; }
 .card-title { font-weight: 600; font-size: 14px; color: #303133; padding: 10px 16px; background: #fafafa; border-bottom: 1px solid #ebeef5; }

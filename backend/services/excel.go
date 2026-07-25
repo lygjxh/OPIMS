@@ -428,18 +428,4 @@ func inferStatus(sheet string) string {
 	}
 }
 
-func extractCountry(name, addr string) string {
-	keywords := map[string]string{
-		"蒙古": "蒙古", "俄罗斯": "俄罗斯", "伊拉克": "伊拉克",
-		"印尼": "印尼", "印度尼西亚": "印尼", "尼日利亚": "尼日利亚",
-		"纳米比亚": "纳米比亚", "阿布扎比": "阿联酋", "阿联酋": "阿联酋",
-		"伊朗": "伊朗", "格什姆": "伊朗", "ADNOC": "阿联酋",
-		"DBN": "阿联酋", "LNG": "阿联酋", "PLF": "尼日利亚",
-	}
-	for k, v := range keywords {
-		if strings.Contains(name+addr, k) {
-			return v
-		}
-	}
-	return "其他"
-}
+// extractCountry 已移至 country.go（关键词表外置 + 匹配顺序确定化）。

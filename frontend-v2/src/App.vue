@@ -12,19 +12,25 @@
 
       <nav class="nav">
         <div class="nav-group">主业务</div>
-        <RouterLink v-for="m in mainMenu" :key="m.path" :to="m.disabled ? '' : m.path"
-          class="nav-item" :class="{ disabled: m.disabled }">
-          <el-icon class="nav-ic"><component :is="m.icon" /></el-icon>
-          <span>{{ $t('menu.' + m.key) }}</span>
-          <span v-if="m.disabled" class="soon">待建</span>
-        </RouterLink>
+        <template v-for="m in mainMenu" :key="m.path">
+          <RouterLink v-if="!m.disabled" :to="m.path" class="nav-item">
+            <el-icon class="nav-ic"><component :is="m.icon" /></el-icon>
+            <span>{{ $t('menu.' + m.key) }}</span>
+          </RouterLink>
+          <button v-else type="button" class="nav-item pending" @click="notReady($t('menu.' + m.key))">
+            <el-icon class="nav-ic"><component :is="m.icon" /></el-icon>
+            <span>{{ $t('menu.' + m.key) }}</span>
+            <span class="soon">待建</span>
+          </button>
+        </template>
 
         <div class="nav-group">扩展模块</div>
-        <RouterLink v-for="m in extMenu" :key="m.path" to="" class="nav-item disabled">
+        <button v-for="m in extMenu" :key="m.path" type="button"
+          class="nav-item pending" @click="notReady($t('menu.' + m.key))">
           <el-icon class="nav-ic"><component :is="m.icon" /></el-icon>
           <span>{{ $t('menu.' + m.key) }}</span>
           <span class="soon">待建</span>
-        </RouterLink>
+        </button>
       </nav>
 
       <div class="side-foot">v0.1 · for-claude</div>
@@ -42,7 +48,10 @@
           <el-button text class="lang-btn" @click="toggleLang">
             <el-icon><Switch /></el-icon>{{ $t('common.lang') }}
           </el-button>
-          <div class="avatar">运</div>
+          <div class="user">
+            <div class="avatar">运</div>
+            <span class="user-name">海外运营中心</span>
+          </div>
         </div>
       </header>
 
@@ -56,6 +65,7 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { ElMessage } from 'element-plus'
 import {
   DataBoard, List, FolderOpened, WarningFilled, UserFilled,
   TrendCharts, CircleCheck, Connection, Avatar, Switch,
@@ -80,6 +90,10 @@ const extMenu = [
 
 function toggleLang() {
   locale.value = locale.value === 'zh' ? 'en' : 'zh'
+}
+
+function notReady(name: string) {
+  ElMessage.info(`${name} 模块建设中`)
 }
 </script>
 
@@ -133,7 +147,13 @@ function toggleLang() {
   width: 3px; border-radius: 0 3px 3px 0; background: var(--c-accent);
 }
 .nav-ic { font-size: 17px; }
-.nav-item.disabled { opacity: .5; pointer-events: none; }
+/* 待建模块：可点击并给出提示，而不是死链 */
+.nav-item.pending {
+  width: 100%; font: inherit; font-size: 14px; text-align: left;
+  background: none; border: 0; cursor: pointer; opacity: .62;
+}
+.nav-item.pending:hover { opacity: .95; background: rgba(255, 255, 255, .06); }
+.nav-item:focus-visible { outline: 2px solid var(--c-secondary); outline-offset: 1px; }
 .soon {
   margin-left: auto; font-size: 10px; padding: 1px 6px;
   border-radius: 5px; background: rgba(255, 255, 255, .1); color: #8ea3c7;
@@ -157,6 +177,8 @@ function toggleLang() {
 .crumb-cur { color: var(--c-text-strong); font-weight: 600; }
 .top-actions { margin-left: auto; display: flex; align-items: center; gap: 14px; }
 .lang-btn { color: var(--c-text-muted); font-weight: 500; }
+.user { display: flex; align-items: center; gap: 9px; }
+.user-name { font-size: 13px; color: var(--c-text); font-weight: 500; }
 .avatar {
   width: 34px; height: 34px; border-radius: 50%;
   background: linear-gradient(135deg, var(--c-primary), var(--c-primary-700));

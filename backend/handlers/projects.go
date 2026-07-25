@@ -56,16 +56,22 @@ func (h *Handler) listProjects(w http.ResponseWriter, r *http.Request) {
 	where := "WHERE is_deleted=0"
 	args := []interface{}{}
 
+	// status=all 表示显式请求全部状态（不加状态条件，也不套用下面的默认过滤）
+	statusParam := q.Get("status")
+	allStatuses := statusParam == "all"
+
 	for _, f := range []struct{ param, col string }{
 		{"status", "project_status"},
 		{"type", "project_type"},
 		{"country", "country"},
 		{"domestic_overseas", "domestic_overseas"},
 	} {
-		if v := q.Get(f.param); v != "" {
-			where += " AND " + f.col + "=?"
-			args = append(args, v)
+		v := q.Get(f.param)
+		if v == "" || (f.param == "status" && allStatuses) {
+			continue
 		}
+		where += " AND " + f.col + "=?"
+		args = append(args, v)
 	}
 
 	if kw := q.Get("keyword"); kw != "" {
@@ -74,8 +80,8 @@ func (h *Handler) listProjects(w http.ResponseWriter, r *http.Request) {
 		args = append(args, pat, pat, pat)
 	}
 
-	// Default: only 在建 + 未开工 when no status filter
-	if q.Get("status") == "" {
+	// Default: only 在建 + 未开工 when no status filter (status=all 跳过该默认)
+	if statusParam == "" {
 		where += " AND project_status IN ('在建','未开工')"
 	}
 

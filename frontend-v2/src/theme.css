@@ -21,11 +21,16 @@
   --c-border: #e5eaf1;
   --c-border-strong: #d5deea;
 
-  /* 状态色（项目状态） */
-  --c-status-inprogress: #2563eb;
-  --c-status-notstarted: #d97706;
-  --c-status-suspended: #dc2626;
-  --c-status-completed: #16a34a;
+  /* 状态色（项目状态）—— 取自 dataviz 规范已验证的 status 配色。
+     正常视力下四色两两可辨（最差 ΔE 24.1）；红/绿在红绿色盲下无法靠色相区分，
+     因此凡使用这些颜色处必须同时给出文字标签或图标（KPI 卡、图例、地图 tooltip、
+     状态标签均已满足），绝不单靠颜色传达状态。 */
+  --c-status-inprogress: #2a78d6;
+  --c-status-notstarted: #eda100;
+  --c-status-suspended: #d03b3b;
+  --c-status-completed: #0ca30c;
+  /* 未开工黄在白底对比度 2.11 (<3:1)，故仅用于色块/描边，不用于文字 */
+  --c-status-notstarted-ink: #8a5d00;
 
   /* 侧边栏（深蓝） */
   --c-side-bg: #0b1e3f;
