@@ -54,56 +54,77 @@
         </div>
       </el-card>
 
-      <!-- 快捷入口 -->
-      <el-card class="shortcuts-card">
-        <template #header>{{ $t('dashboard.shortcuts') }}</template>
-        <div class="shortcuts">
-          <button class="shortcut" v-for="item in shortcuts" :key="item.path"
-            type="button" @click="goShortcut(item)">
-            <el-icon :size="22"><component :is="item.icon" /></el-icon>
-            <span>{{ item.label }}</span>
-          </button>
-        </div>
-      </el-card>
-    </div>
-
-    <!-- 合同额概览：可按国别 / 按地区切换 -->
-    <el-card class="amount-card">
-      <template #header>
-        <div class="card-head">
-          <div class="head-left">
+      <!-- 合同额分布：饼图，可按地区/国别切换，可按状态筛选 -->
+      <el-card class="amount-card">
+        <template #header>
+          <div class="card-head">
             <span>合同额分布</span>
-            <el-radio-group v-model="groupBy" size="small" class="group-switch">
+            <el-radio-group v-model="groupBy" size="small">
               <el-radio-button label="region">按地区</el-radio-button>
               <el-radio-button label="country">按国别</el-radio-button>
             </el-radio-group>
           </div>
-          <div class="amount-total">
-            合计 <b>{{ fmtYi(totalAmount) }}</b> 亿元 ·
-            {{ grouped.length }} 个{{ groupBy === 'region' ? '地区' : '国别' }}
-          </div>
-        </div>
-      </template>
+        </template>
 
-      <div v-if="grouped.length" class="bars">
-        <div v-for="g in grouped" :key="g.name" class="bar-row"
-          :class="{ clickable: groupBy === 'region' && g.name !== '未分类' }"
-          :title="barTitle(g)"
-          @click="drillDown(g)">
-          <span class="bar-name">{{ g.name }}</span>
-          <div class="bar-track">
-            <span class="bar-fill" :style="{ width: amtWidth(g.amount) }"></span>
-          </div>
-          <span class="bar-val">{{ fmtYi(g.amount) }}<em>亿</em></span>
-          <span class="bar-cnt">{{ g.count }}个</span>
+        <!-- 状态筛选：全部（单选） + 在建/未开工/完工（可多选） -->
+        <div class="status-filter">
+          <button type="button" class="sf-btn" :class="{ on: !statusPicked.length }"
+            @click="statusPicked = []">全部</button>
+          <button v-for="s in PICKABLE_STATUS" :key="s" type="button"
+            class="sf-btn" :class="{ on: statusPicked.includes(s) }"
+            @click="toggleStatus(s)">{{ s }}</button>
         </div>
+
+        <template v-if="grouped.length">
+          <!-- 环形图：SVG 手绘，无第三方图表依赖 -->
+          <div class="donut-wrap">
+            <svg class="donut" viewBox="0 0 200 200" role="img"
+              :aria-label="`合同额分布，共 ${fmtYi(totalAmount)} 亿元`">
+              <g v-for="(s, i) in slices" :key="s.name">
+                <path :d="s.path" :fill="s.color" class="slice"
+                  :class="{ dim: hoverIdx >= 0 && hoverIdx !== i, clickable: canDrill(s.name) }"
+                  @mouseenter="hoverIdx = i" @mouseleave="hoverIdx = -1"
+                  @click="drillDown({ name: s.name, amount: s.amount, count: s.count })">
+                  <title>{{ s.name }}：{{ fmtYi(s.amount) }} 亿元（{{ s.pct }}%）· {{ s.count }} 个项目</title>
+                </path>
+              </g>
+              <!-- 圆心汇总 -->
+              <text x="100" y="94" class="dn-num" text-anchor="middle">{{ fmtYi(totalAmount) }}</text>
+              <text x="100" y="112" class="dn-unit" text-anchor="middle">亿元</text>
+              <text x="100" y="128" class="dn-sub" text-anchor="middle">{{ filteredCount }} 个项目</text>
+            </svg>
+          </div>
+
+          <!-- 图例：名称+金额+占比，不让颜色单独承担信息 -->
+          <ul class="dn-legend">
+            <li v-for="(s, i) in slices" :key="s.name"
+              :class="{ dim: hoverIdx >= 0 && hoverIdx !== i, clickable: canDrill(s.name) }"
+              @mouseenter="hoverIdx = i" @mouseleave="hoverIdx = -1"
+              @click="drillDown({ name: s.name, amount: s.amount, count: s.count })">
+              <i class="sw" :style="{ background: s.color }"></i>
+              <span class="lg-name">{{ s.name }}</span>
+              <span class="lg-val">{{ fmtYi(s.amount) }}<em>亿</em></span>
+              <span class="lg-pct">{{ s.pct }}%</span>
+            </li>
+          </ul>
+          <p v-if="groupBy === 'region'" class="bar-tip">
+            <el-icon><InfoFilled /></el-icon>点击扇区或图例可展开国别明细
+          </p>
+        </template>
+        <p v-else class="empty-hint">当前筛选条件下暂无合同额数据</p>
+      </el-card>
+    </div>
+
+    <!-- 快捷入口（整行） -->
+    <el-card class="shortcuts-card">
+      <template #header>{{ $t('dashboard.shortcuts') }}</template>
+      <div class="shortcuts">
+        <button class="shortcut" v-for="item in shortcuts" :key="item.path"
+          type="button" @click="goShortcut(item)">
+          <el-icon :size="22"><component :is="item.icon" /></el-icon>
+          <span>{{ item.label }}</span>
+        </button>
       </div>
-      <p v-else class="empty-hint">暂无合同额数据</p>
-
-      <p v-if="groupBy === 'region'" class="bar-tip">
-        <el-icon><InfoFilled /></el-icon>
-        点击地区可展开该地区包含的国别
-      </p>
     </el-card>
 
     <!-- 地区下钻弹窗 -->
@@ -179,13 +200,29 @@ function gotoList(status: string) {
   router.push({ path: '/projects', query: status ? { status } : {} })
 }
 
-/* ---- 合同额聚合：可按地区或国别（单一色调，长度即量级） ---- */
+/* ---- 合同额分布（环形图）：可按地区/国别切换，可按状态筛选 ---- */
 type Bucket = { name: string; amount: number; count: number }
 
 const groupBy = ref<'region' | 'country'>('region')
 
+/** 状态筛选：空数组 = 全部；否则为选中的状态（可多选） */
+const PICKABLE_STATUS = ['在建', '未开工', '完工']
+const statusPicked = ref<string[]>([])
+function toggleStatus(s: string) {
+  const i = statusPicked.value.indexOf(s)
+  if (i >= 0) statusPicked.value.splice(i, 1)
+  else statusPicked.value.push(s)
+}
+
+/** 经状态筛选后的项目集合 */
+const filteredProjects = computed(() =>
+  statusPicked.value.length
+    ? projects.value.filter(p => statusPicked.value.includes(p.project_status))
+    : projects.value)
+const filteredCount = computed(() => filteredProjects.value.length)
+
 /** 按指定维度聚合项目合同额 */
-function aggregate(dim: 'region' | 'country', source = projects.value): Bucket[] {
+function aggregate(dim: 'region' | 'country', source: any[]): Bucket[] {
   const m = new Map<string, Bucket>()
   for (const p of source) {
     const country = p.country || '其他'
@@ -198,15 +235,66 @@ function aggregate(dim: 'region' | 'country', source = projects.value): Bucket[]
   return [...m.values()].sort((a, b) => b.amount - a.amount)
 }
 
-const grouped = computed(() => aggregate(groupBy.value))
+/** 合同额为 0 的分组不进饼图（无面积可画） */
+const grouped = computed(() =>
+  aggregate(groupBy.value, filteredProjects.value).filter(g => g.amount > 0))
 const totalAmount = computed(() => grouped.value.reduce((s, g) => s + g.amount, 0))
-const maxAmount = computed(() => Math.max(...grouped.value.map(g => g.amount), 1))
-function amtWidth(v: number) { return Math.max(1.5, (v / maxAmount.value) * 100) + '%' }
 
-function barTitle(g: Bucket) {
-  const base = `${g.name}：${fmtYi(g.amount)} 亿元 · ${g.count} 个项目`
-  return groupBy.value === 'region' && g.name !== '未分类' ? base + '（点击查看国别明细）' : base
+/* 分类配色：取自 dataviz 规范已验证的分类色序，固定顺序、不循环复用。
+   超过 7 类时尾部合并为「其他」——生成新色相在色盲下无法区分。 */
+const SLICE_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7']
+const MAX_SLICES = 7
+
+const hoverIdx = ref(-1)
+
+/** 环形图扇区：合并尾部 + 计算 SVG 路径 */
+const slices = computed(() => {
+  const src = grouped.value
+  let list: Bucket[] = src
+  if (src.length > MAX_SLICES) {
+    const head = src.slice(0, MAX_SLICES - 1)
+    const tail = src.slice(MAX_SLICES - 1)
+    list = [...head, {
+      name: `其他 ${tail.length} 项`,
+      amount: tail.reduce((s, t) => s + t.amount, 0),
+      count: tail.reduce((s, t) => s + t.count, 0),
+    }]
+  }
+  const total = list.reduce((s, g) => s + g.amount, 0) || 1
+  let angle = -90 // 从 12 点方向开始
+  return list.map((g, i) => {
+    const sweep = (g.amount / total) * 360
+    const path = arcPath(100, 100, 88, 56, angle, angle + sweep)
+    angle += sweep
+    return {
+      ...g,
+      color: SLICE_COLORS[i % SLICE_COLORS.length],
+      pct: (g.amount / total * 100).toFixed(1),
+      path,
+    }
+  })
+})
+
+/** 生成环形扇区路径；相邻扇区留 1.2° 间隙，等效"表面留白"分隔 */
+function arcPath(cx: number, cy: number, rOut: number, rIn: number, a0: number, a1: number) {
+  const gap = Math.min(1.2, Math.abs(a1 - a0) / 4)
+  const s = a0 + gap / 2, e = a1 - gap / 2
+  const full = e - s >= 359.5
+  const rad = (d: number) => (d * Math.PI) / 180
+  const pt = (r: number, d: number) => [cx + r * Math.cos(rad(d)), cy + r * Math.sin(rad(d))]
+  if (full) {
+    // 单一分组占满：画整圆环（两段半圆拼接，避免弧长 360° 的退化）
+    return `M ${cx - rOut} ${cy} A ${rOut} ${rOut} 0 1 1 ${cx + rOut} ${cy} A ${rOut} ${rOut} 0 1 1 ${cx - rOut} ${cy} Z ` +
+           `M ${cx - rIn} ${cy} A ${rIn} ${rIn} 0 1 0 ${cx + rIn} ${cy} A ${rIn} ${rIn} 0 1 0 ${cx - rIn} ${cy} Z`
+  }
+  const large = e - s > 180 ? 1 : 0
+  const [x1, y1] = pt(rOut, s), [x2, y2] = pt(rOut, e)
+  const [x3, y3] = pt(rIn, e), [x4, y4] = pt(rIn, s)
+  return `M ${x1} ${y1} A ${rOut} ${rOut} 0 ${large} 1 ${x2} ${y2} L ${x3} ${y3} A ${rIn} ${rIn} 0 ${large} 0 ${x4} ${y4} Z`
 }
+
+const canDrill = (name: string) =>
+  groupBy.value === 'region' && name !== '未分类' && !name.startsWith('其他 ')
 
 /* ---- 地区下钻 ---- */
 const drillVisible = ref(false)
@@ -214,9 +302,11 @@ const drillRegion = ref('')
 const drillRows = ref<Bucket[]>([])
 
 function drillDown(g: Bucket) {
-  if (groupBy.value !== 'region' || g.name === '未分类') return
+  if (!canDrill(g.name)) return
   drillRegion.value = g.name
-  drillRows.value = aggregate('country', projects.value.filter(p => regionOf(p.country || '其他') === g.name))
+  // 下钻沿用当前状态筛选，保证与饼图数据一致
+  drillRows.value = aggregate('country',
+    filteredProjects.value.filter(p => regionOf(p.country || '其他') === g.name))
   drillVisible.value = true
 }
 const drillMax = computed(() => Math.max(...drillRows.value.map(r => r.amount), 1))
@@ -394,12 +484,44 @@ function addMarker(lat: number, lng: number, name: string, status: string, count
 .shortcut:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 2px; }
 
 /* ---- 合同额条形图（单一色调；长度编码量级） ---- */
-.head-left { display: flex; align-items: center; gap: 14px; }
-.group-switch { --el-border-radius-base: 7px; }
-.amount-total { font-size: 12.5px; color: var(--c-text-muted); font-weight: 400; }
-.amount-total b { color: var(--c-text-strong); font-size: 15px; }
-.bar-row.clickable { cursor: pointer; }
-.bar-row.clickable:hover .bar-name { color: var(--c-primary); font-weight: 600; }
+/* ---- 状态筛选 ---- */
+.status-filter { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.sf-btn {
+  font: inherit; font-size: 12px; padding: 4px 11px; cursor: pointer;
+  border: 1px solid var(--c-border-strong); background: var(--c-surface);
+  color: var(--c-text); border-radius: 14px; transition: all .16s;
+}
+.sf-btn:hover { border-color: var(--c-primary); color: var(--c-primary); }
+.sf-btn.on {
+  background: var(--c-primary); border-color: var(--c-primary);
+  color: #fff; font-weight: 500;
+}
+.sf-btn:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 1px; }
+
+/* ---- 环形图 ---- */
+.donut-wrap { display: flex; justify-content: center; }
+.donut { width: 100%; max-width: 232px; height: auto; }
+.slice { transition: opacity .18s; }
+.slice.dim { opacity: .32; }
+.slice.clickable { cursor: pointer; }
+.dn-num { font-size: 30px; font-weight: 800; fill: var(--c-text-strong); }
+.dn-unit { font-size: 11px; fill: var(--c-text-muted); }
+.dn-sub { font-size: 10.5px; fill: var(--c-text-muted); }
+
+.dn-legend { list-style: none; margin: 14px 0 0; padding: 0; }
+.dn-legend li {
+  display: grid; grid-template-columns: 11px 1fr auto 44px;
+  align-items: center; gap: 8px; padding: 5px 6px;
+  border-radius: 6px; font-size: 12.5px; transition: background .15s, opacity .18s;
+}
+.dn-legend li:hover { background: #f6f9fe; }
+.dn-legend li.dim { opacity: .42; }
+.dn-legend li.clickable { cursor: pointer; }
+.sw { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+.lg-name { color: var(--c-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lg-val { color: var(--c-text-strong); font-weight: 600; font-variant-numeric: tabular-nums; }
+.lg-val em { font-style: normal; font-size: 10.5px; font-weight: 400; color: var(--c-text-muted); margin-left: 1px; }
+.lg-pct { color: var(--c-text-muted); text-align: right; font-variant-numeric: tabular-nums; }
 .bar-tip {
   display: flex; align-items: center; gap: 5px; margin: 12px 0 0;
   font-size: 11.5px; color: var(--c-text-muted);
