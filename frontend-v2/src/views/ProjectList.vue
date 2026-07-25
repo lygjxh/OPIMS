@@ -57,11 +57,13 @@
           </span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="124" fixed="right" align="center">
+      <el-table-column label="操作" width="112" fixed="right" align="center" class-name="col-ops">
         <template #default="{ row }">
-          <el-button text type="primary" size="small" @click.stop="showDialog(row)">编辑</el-button>
-          <el-divider direction="vertical" />
-          <el-button text type="danger" size="small" @click.stop="del(row)">删除</el-button>
+          <div class="ops">
+            <button type="button" class="op-btn" @click.stop="showDialog(row)">编辑</button>
+            <span class="op-sep"></span>
+            <button type="button" class="op-btn danger" @click.stop="del(row)">删除</button>
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -406,6 +408,20 @@ onMounted(() => { applyRouteQuery(); load() })
 .st-ring { border-radius: 50%; background: #fff; border: 2.5px solid var(--st); }
 .st-square { border-radius: 2px; }
 .st-small { border-radius: 50%; width: 6px; height: 6px; }
+
+/* 操作列：单行不换行，紧凑排布 */
+:deep(.col-ops .cell) { padding-left: 6px !important; padding-right: 6px !important; }
+.ops { display: flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+.op-btn {
+  border: 0; background: none; padding: 2px 1px; cursor: pointer;
+  font: inherit; font-size: 12.5px; line-height: 1.2;
+  color: var(--c-primary); border-radius: 4px; transition: color .15s;
+}
+.op-btn:hover { color: var(--c-primary-600); text-decoration: underline; }
+.op-btn.danger { color: var(--c-status-suspended); }
+.op-btn.danger:hover { color: #a82c2c; }
+.op-btn:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 1px; }
+.op-sep { width: 1px; height: 11px; background: var(--c-border-strong); flex-shrink: 0; }
 
 .pager { justify-content: flex-end; padding-top: 4px; }
 .detail-scroll { max-height: 70vh; overflow-y: auto; padding-right: 4px; }
