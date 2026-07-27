@@ -155,7 +155,7 @@ import 'leaflet/dist/leaflet.css'
 import {
   OfficeBuilding, List, FolderOpened, WarningFilled, UserFilled, TrendCharts,
   CircleCheck, Connection, Avatar, Loading, Clock, Warning, Select,
-  LocationInformation, InfoFilled,
+  LocationInformation, InfoFilled, Flag,
 } from '@element-plus/icons-vue'
 import { COUNTRY_COORDS, spreadOffset } from '../data/countryCoords'
 
@@ -310,6 +310,7 @@ const shortcuts = [
   { path: '/projects', label: t('menu.projects'), icon: List, ready: true },
   { path: '/files', label: t('menu.files'), icon: FolderOpened, ready: true },
   { path: '/blacklist-sub', label: t('menu.blacklistSub'), icon: WarningFilled, ready: true },
+  { path: '/country-profile', label: t('menu.countryProfile'), icon: Flag, ready: true },
   { path: '/blacklist-person', label: t('menu.blacklistPerson'), icon: UserFilled, ready: false },
   { path: '/progress', label: t('menu.progress'), icon: TrendCharts, ready: false },
   { path: '/quality', label: t('menu.quality'), icon: CircleCheck, ready: false },

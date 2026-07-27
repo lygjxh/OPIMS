@@ -73,7 +73,7 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import {
   DataBoard, List, FolderOpened, WarningFilled, UserFilled,
-  TrendCharts, CircleCheck, Connection, Avatar, Switch, OfficeBuilding,
+  TrendCharts, CircleCheck, Connection, Avatar, Switch, OfficeBuilding, Flag,
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -84,6 +84,7 @@ const mainMenu = [
   { path: '/projects', key: 'projects', icon: List, disabled: false },
   { path: '/files', key: 'files', icon: FolderOpened, disabled: false },
   { path: '/blacklist-sub', key: 'blacklistSub', icon: WarningFilled, disabled: false },
+  { path: '/country-profile', key: 'countryProfile', icon: Flag, disabled: false },
   { path: '/blacklist-person', key: 'blacklistPerson', icon: UserFilled, disabled: true },
 ]
 const extMenu = [

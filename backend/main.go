@@ -79,6 +79,9 @@ func main() {
 	mux.HandleFunc("/api/dashboard", h.Dashboard)
 	mux.HandleFunc("/api/dashboard/contract-distribution", h.ContractDistribution)
 	mux.HandleFunc("/api/dashboard/region-detail/", h.RegionDetail)
+	mux.HandleFunc("/api/policy/countries", h.PolicyCountries)
+	mux.HandleFunc("/api/policy/country/", h.PolicyCountryByName)
+	mux.HandleFunc("/api/policy/internal", h.PolicyInternal)
 	mux.HandleFunc("/api/config/backup", h.Backup)
 	mux.HandleFunc("/api/config/restore", h.Restore)
 
