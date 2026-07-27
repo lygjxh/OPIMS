@@ -132,7 +132,7 @@ func (h *Handler) createProject(w http.ResponseWriter, r *http.Request) {
 		"INSERT INTO projects ("+projectsInsertCols()+") VALUES ("+placeholders(82)+")",
 		projectsInsertVals(&p)...)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, friendlyDBError(err), http.StatusBadRequest)
 		return
 	}
 	json.NewEncoder(w).Encode(map[string]string{"ok": "created"})
@@ -151,7 +151,7 @@ func (h *Handler) updateProject(w http.ResponseWriter, r *http.Request) {
 		"UPDATE projects SET "+updateSetCols()+" updated_at=CURRENT_TIMESTAMP WHERE id=?",
 		append(projectsInsertVals(&p), p.ID)...)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, friendlyDBError(err), http.StatusBadRequest)
 		return
 	}
 	json.NewEncoder(w).Encode(map[string]string{"ok": "updated"})
@@ -216,45 +216,9 @@ func (h *Handler) ImportProjects(w http.ResponseWriter, r *http.Request) {
 			p.ShortName = p.ProjectName
 		}
 
-		var existing models.Project
-		err := database.DB.QueryRow("SELECT * FROM projects WHERE short_name=? AND is_deleted=0", p.ShortName).Scan(
-			&existing.ID, &existing.ShortName, &existing.ContractNo, &existing.ProjectName,
-			&existing.ProjectType, &existing.ProjectStatus, &existing.ImplementUnit,
-			&existing.ContractAmount, &existing.BudgetAmount, &existing.ContractScope,
-			&existing.KeyPoints, &existing.DomesticOverseas, &existing.Province, &existing.City,
-			&existing.Address, &existing.Country,
-			&existing.ContractStartYear, &existing.ContractStartMonth,
-			&existing.ContractEndYear, &existing.ContractEndMonth, &existing.ContractDuration,
-			&existing.ActualStartYear, &existing.ActualStartMonth,
-			&existing.PlanEndYear, &existing.PlanEndMonth, &existing.ActualDuration,
-			&existing.CompletionYear, &existing.CompletionMonth,
-			&existing.RunningStatus, &existing.AbnormalReason, &existing.ProgressStatus,
-			&existing.Issues, &existing.CompletedOutput, &existing.CompletePercent,
-			&existing.ProgressSummary, &existing.CumReceivable, &existing.CumReceived,
-			&existing.OwedAmount,
-			&existing.GPSLat, &existing.GPSLng,
-			&existing.PMContract, &existing.PMAppointed, &existing.PMOnsite, &existing.PMPhone,
-			&existing.PMBuilder, &existing.PMSafetyCert,
-			&existing.TechLeadAppointed, &existing.TechLeadOnsite, &existing.TechLeadPhone,
-			&existing.TechLeadTitle,
-			&existing.QualityMgrAppointed, &existing.QualityMgrOnsite, &existing.QualityMgrPhone,
-			&existing.QualityMgrCert,
-			&existing.HSEAppointed, &existing.HSEOnsite, &existing.HSEPhone, &existing.HSECert,
-			&existing.CostMgrAppointed, &existing.CostMgrOnsite, &existing.CostMgrPhone,
-			&existing.CostMgrCert,
-			&existing.QualityKeyProcess, &existing.QualityMeasures,
-			&existing.SafetyCost, &existing.SafetyCostSpent, &existing.SafetyCostCum,
-			&existing.SafetyMajorHazard, &existing.SafetyHazardMeasure,
-			&existing.SafetyRiskSource, &existing.SafetyRiskMeasure,
-			&existing.OwnerUnit, &existing.OwnerContact, &existing.OwnerPhone,
-			&existing.DesignUnit, &existing.DesignContact, &existing.DesignPhone,
-			&existing.SupervisionUnit, &existing.SupervisionContact, &existing.SupervisionPhone,
-			&existing.Reporter,
-			&existing.PersonnelMgmt, &existing.PersonnelLabor,
-			&existing.IsDeleted,
-		)
+		existing := scanProject(database.DB.QueryRow("SELECT * FROM projects WHERE short_name=? AND is_deleted=0", p.ShortName))
 
-		if err == nil {
+		if existing != nil {
 			// Conflict detected
 			switch conflictMode {
 			case "skip":
@@ -292,7 +256,7 @@ func (h *Handler) ImportProjects(w http.ResponseWriter, r *http.Request) {
 				}
 				conflictList = append(conflictList, conflict{
 					ShortName: existing.ShortName,
-					Existing:  existing,
+					Existing:  *existing,
 					Incoming:  p,
 					Diffs:     diffs,
 				})

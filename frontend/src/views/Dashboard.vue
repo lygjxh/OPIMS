@@ -75,23 +75,23 @@
             @click="toggleStatus(s)">{{ s }}</button>
         </div>
 
-        <template v-if="grouped.length">
+        <template v-if="distribution?.slices?.length">
           <!-- 环形图：SVG 手绘，无第三方图表依赖 -->
           <div class="donut-wrap">
             <svg class="donut" viewBox="0 0 200 200" role="img"
-              :aria-label="`合同额分布，共 ${fmtYi(totalAmount)} 亿元`">
+              :aria-label="`合同额分布，共 ${fmtYi(Number(distribution?.total_amount) || 0)} 亿元`">
               <g v-for="(s, i) in slices" :key="s.name">
                 <path :d="s.path" :fill="s.color" class="slice"
                   :class="{ dim: hoverIdx >= 0 && hoverIdx !== i, clickable: canDrill(s.name) }"
-                  @mouseenter="hoverIdx = i" @mouseleave="hoverIdx = -1"
+                  @mouseenter="hoverIdx = Number(i)" @mouseleave="hoverIdx = -1"
                   @click="drillDown({ name: s.name, amount: s.amount, count: s.count })">
                   <title>{{ s.name }}：{{ fmtYi(s.amount) }} 亿元（{{ s.pct }}%）· {{ s.count }} 个项目</title>
                 </path>
               </g>
               <!-- 圆心汇总 -->
-              <text x="100" y="94" class="dn-num" text-anchor="middle">{{ fmtYi(totalAmount) }}</text>
+              <text x="100" y="94" class="dn-num" text-anchor="middle">{{ fmtYi(Number(distribution?.total_amount) || 0) }}</text>
               <text x="100" y="112" class="dn-unit" text-anchor="middle">亿元</text>
-              <text x="100" y="128" class="dn-sub" text-anchor="middle">{{ filteredCount }} 个项目</text>
+              <text x="100" y="128" class="dn-sub" text-anchor="middle">{{ distribution?.total_count || 0 }} 个项目</text>
             </svg>
           </div>
 
@@ -99,7 +99,7 @@
           <ul class="dn-legend">
             <li v-for="(s, i) in slices" :key="s.name"
               :class="{ dim: hoverIdx >= 0 && hoverIdx !== i, clickable: canDrill(s.name) }"
-              @mouseenter="hoverIdx = i" @mouseleave="hoverIdx = -1"
+              @mouseenter="hoverIdx = Number(i)" @mouseleave="hoverIdx = -1"
               @click="drillDown({ name: s.name, amount: s.amount, count: s.count })">
               <i class="sw" :style="{ background: s.color }"></i>
               <span class="lg-name">{{ s.name }}</span>
@@ -145,7 +145,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick, computed } from 'vue'
+import { ref, onMounted, nextTick, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -158,7 +158,6 @@ import {
   LocationInformation, InfoFilled,
 } from '@element-plus/icons-vue'
 import { COUNTRY_COORDS, spreadOffset } from '../data/countryCoords'
-import { regionOf } from '../data/regions'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -201,7 +200,6 @@ function gotoList(status: string) {
 }
 
 /* ---- 合同额分布（环形图）：可按地区/国别切换，可按状态筛选 ---- */
-type Bucket = { name: string; amount: number; count: number }
 
 const groupBy = ref<'region' | 'country'>('region')
 
@@ -214,62 +212,46 @@ function toggleStatus(s: string) {
   else statusPicked.value.push(s)
 }
 
-/** 经状态筛选后的项目集合 */
-const filteredProjects = computed(() =>
-  statusPicked.value.length
-    ? projects.value.filter(p => statusPicked.value.includes(p.project_status))
-    : projects.value)
-const filteredCount = computed(() => filteredProjects.value.length)
+/** 从后端 API 加载合同额分布数据 */
+const distribution = ref<any>(null)
+const distLoading = ref(false)
 
-/** 按指定维度聚合项目合同额 */
-function aggregate(dim: 'region' | 'country', source: any[]): Bucket[] {
-  const m = new Map<string, Bucket>()
-  for (const p of source) {
-    const country = p.country || '其他'
-    const key = dim === 'region' ? regionOf(country) : country
-    const cur = m.get(key) || { name: key, amount: 0, count: 0 }
-    cur.amount += Number(p.contract_amount) || 0
-    cur.count += 1
-    m.set(key, cur)
-  }
-  return [...m.values()].sort((a, b) => b.amount - a.amount)
+async function loadDistribution() {
+  distLoading.value = true
+  try {
+    const params: any = { dim: groupBy.value }
+    if (statusPicked.value.length) {
+      params.status = statusPicked.value.join(',')
+    }
+    const { data } = await axios.get('/api/dashboard/contract-distribution', { params })
+    distribution.value = data
+  } catch { distribution.value = null }
+  distLoading.value = false
 }
 
-/** 合同额为 0 的分组不进饼图（无面积可画） */
-const grouped = computed(() =>
-  aggregate(groupBy.value, filteredProjects.value).filter(g => g.amount > 0))
-const totalAmount = computed(() => grouped.value.reduce((s, g) => s + g.amount, 0))
-
 /* 分类配色：取自 dataviz 规范已验证的分类色序，固定顺序、不循环复用。
-   超过 7 类时尾部合并为「其他」——生成新色相在色盲下无法区分。 */
+   超过 7 类时尾部合并为「其他 N 项」——该逻辑由后端 /api/dashboard/contract-distribution 完成。 */
 const SLICE_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7']
-const MAX_SLICES = 7
 
 const hoverIdx = ref(-1)
 
-/** 环形图扇区：合并尾部 + 计算 SVG 路径 */
+/** 环形图扇区：从 API 数据计算 SVG 路径与颜色 */
 const slices = computed(() => {
-  const src = grouped.value
-  let list: Bucket[] = src
-  if (src.length > MAX_SLICES) {
-    const head = src.slice(0, MAX_SLICES - 1)
-    const tail = src.slice(MAX_SLICES - 1)
-    list = [...head, {
-      name: `其他 ${tail.length} 项`,
-      amount: tail.reduce((s, t) => s + t.amount, 0),
-      count: tail.reduce((s, t) => s + t.count, 0),
-    }]
-  }
-  const total = list.reduce((s, g) => s + g.amount, 0) || 1
+  const raw = distribution.value?.slices || []
+  // 注意：后端 JSON 字段为下划线命名（total_amount / total_count），
+  // 写成驼峰会取到 undefined，导致 total 退化为 1、扇区角度爆表、饼图画坏。
+  const total = Number(distribution.value?.total_amount) || 1
   let angle = -90 // 从 12 点方向开始
-  return list.map((g, i) => {
-    const sweep = (g.amount / total) * 360
+  return raw.map((g: any, i: number) => {
+    const sweep = total > 0 ? (g.amount / total) * 360 : 0
     const path = arcPath(100, 100, 88, 56, angle, angle + sweep)
     angle += sweep
     return {
-      ...g,
+      name: String(g.name),
+      amount: Number(g.amount) || 0,
+      count: Number(g.count) || 0,
       color: SLICE_COLORS[i % SLICE_COLORS.length],
-      pct: (g.amount / total * 100).toFixed(1),
+      pct: total > 0 ? (g.amount / total * 100).toFixed(1) : '0.0',
       path,
     }
   })
@@ -299,22 +281,28 @@ const canDrill = (name: string) =>
 /* ---- 地区下钻 ---- */
 const drillVisible = ref(false)
 const drillRegion = ref('')
-const drillRows = ref<Bucket[]>([])
+const drillRows = ref<any[]>([])
+const drillLoading = ref(false)
 
-function drillDown(g: Bucket) {
+async function drillDown(g: any) {
   if (!canDrill(g.name)) return
   drillRegion.value = g.name
-  // 下钻沿用当前状态筛选，保证与饼图数据一致
-  drillRows.value = aggregate('country',
-    filteredProjects.value.filter(p => regionOf(p.country || '其他') === g.name))
   drillVisible.value = true
+  drillLoading.value = true
+  try {
+    const params: any = {}
+    if (statusPicked.value.length) params.status = statusPicked.value.join(',')
+    const { data } = await axios.get(`/api/dashboard/region-detail/${encodeURIComponent(g.name)}`, { params })
+    drillRows.value = data?.countries || data || []
+  } catch { drillRows.value = [] }
+  drillLoading.value = false
 }
 const drillMax = computed(() => Math.max(...drillRows.value.map(r => r.amount), 1))
 function drillWidth(v: number) { return Math.max(1.5, (v / drillMax.value) * 100) + '%' }
 
 /** 万元 → 亿元 */
-function fmtYi(wan: number) {
-  const yi = wan / 10000
+function fmtYi(wan: number | string) {
+  const yi = Number(wan) / 10000 || 0
   return yi >= 100 ? yi.toFixed(0) : yi >= 10 ? yi.toFixed(1) : yi.toFixed(2)
 }
 
@@ -326,7 +314,7 @@ const shortcuts = [
   { path: '/progress', label: t('menu.progress'), icon: TrendCharts, ready: false },
   { path: '/quality', label: t('menu.quality'), icon: CircleCheck, ready: false },
   { path: '/subcontract', label: t('menu.subcontract'), icon: Connection, ready: true },
-  { path: '/subcontractors', label: t('menu.subcontractors'), icon: Connection, ready: false },
+  { path: '/subcontractors', label: t('menu.subcontractors'), icon: OfficeBuilding, ready: true },
   { path: '/personnel', label: t('menu.personnel'), icon: Avatar, ready: false },
 ]
 function goShortcut(item: any) {
@@ -342,14 +330,18 @@ onMounted(async () => {
     dashboard.value = data
   } catch { /* 无数据 */ }
   try {
-    // status=all：取全部状态，用于地图国别定位与合同额统计
+    // status=all：取全部状态，用于地图国别定位
     const { data } = await axios.get('/api/projects', { params: { status: 'all' } })
     projects.value = data.projects || []
   } catch { projects.value = [] }
-
+  await loadDistribution()
   await nextTick()
   drawMap()
 })
+
+// deep 必需：statusPicked 是数组 ref，toggleStatus 用 push/splice 原地修改，
+// 引用不变，默认（浅）监听不会触发，状态筛选会失效。
+watch([groupBy, statusPicked], loadDistribution, { deep: true })
 
 function drawMap() {
   if (!mapRef.value) return

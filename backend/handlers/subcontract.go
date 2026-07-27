@@ -44,13 +44,38 @@ func (h *Handler) SubcontractList(w http.ResponseWriter, r *http.Request) {
 			args = append(args, like, like)
 		}
 
+		// 账期（月份）快照：收集所有可选账期（倒序），默认取最新账期；
+		// period=all 表示跨账期汇总，同一 contract_no 只保留最新账期的那条。
+		periods := []string{}
+		if prows, perr := database.DB.Query("SELECT DISTINCT period FROM project_subcontract WHERE period!='' ORDER BY period DESC"); perr == nil {
+			for prows.Next() {
+				var p string
+				prows.Scan(&p)
+				periods = append(periods, p)
+			}
+			prows.Close()
+		}
+		period := q.Get("period")
+		if period == "" {
+			if len(periods) > 0 {
+				period = periods[0] // 默认最新账期
+			}
+		}
+		if period == "all" {
+			where += ` AND NOT EXISTS (SELECT 1 FROM project_subcontract x
+				WHERE x.contract_no=ps.contract_no AND x.contract_no!='' AND x.period > ps.period)`
+		} else {
+			where += " AND ps.period=?"
+			args = append(args, period)
+		}
+
 		orderBy := "ps.id DESC"
 		if q.Get("dim") == "sub" {
 			orderBy = "ps.sub_name ASC, ps.id DESC"
 		}
 
 		rows, err := database.DB.Query(
-			`SELECT ps.id, ps.seq_no, ps.branch_company, ps.project_name, ps.main_contract_amount,
+			`SELECT ps.id, ps.period, ps.seq_no, ps.branch_company, ps.project_name, ps.main_contract_amount,
 			        ps.sub_name, ps.sub_tier, ps.sub_profession_raw, ps.sub_contract_profession,
 			        ps.sub_controller, ps.sub_controller_phone, ps.contract_no, ps.contract_name,
 			        ps.contract_amount, ps.supplement_amount, ps.contract_date, ps.progress_percent,
@@ -72,7 +97,7 @@ func (h *Handler) SubcontractList(w http.ResponseWriter, r *http.Request) {
 		var totalAmount float64
 		for rows.Next() {
 			var rec models.SubcontractRecord
-			rows.Scan(&rec.ID, &rec.SeqNo, &rec.BranchCompany, &rec.ProjectName, &rec.MainContractAmount,
+			rows.Scan(&rec.ID, &rec.Period, &rec.SeqNo, &rec.BranchCompany, &rec.ProjectName, &rec.MainContractAmount,
 				&rec.SubName, &rec.SubTier, &rec.SubProfessionRaw, &rec.SubContractProfession,
 				&rec.SubController, &rec.SubControllerPhone, &rec.ContractNo, &rec.ContractName,
 				&rec.ContractAmount, &rec.SupplementAmount, &rec.ContractDate, &rec.ProgressPercent,
@@ -91,6 +116,8 @@ func (h *Handler) SubcontractList(w http.ResponseWriter, r *http.Request) {
 			"records":      records,
 			"total_count":  len(records),
 			"total_amount": totalAmount,
+			"periods":      periods,
+			"period":       period,
 		})
 
 	case "POST":
@@ -103,7 +130,7 @@ func (h *Handler) SubcontractList(w http.ResponseWriter, r *http.Request) {
 		rec.ProfessionCategory = data.CategoryOf(rec.StandardizedProfession)
 
 		res, err := database.DB.Exec(
-			`INSERT INTO project_subcontract (seq_no,branch_company,project_name,main_contract_amount,
+			`INSERT INTO project_subcontract (period,seq_no,branch_company,project_name,main_contract_amount,
 			 sub_name,sub_tier,sub_profession_raw,sub_contract_profession,sub_controller,sub_controller_phone,
 			 contract_no,contract_name,contract_amount,supplement_amount,contract_date,progress_percent,
 			 entry_date,exit_date,evaluation_completed,personnel_count,
@@ -112,8 +139,8 @@ func (h *Handler) SubcontractList(w http.ResponseWriter, r *http.Request) {
 			 safety_officer,safety_officer_approved,safety_officer_status,
 			 contract_compliance,noncompliance_note,remarks,
 			 project_short_name,standardized_profession,profession_category)
-			 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-			rec.SeqNo, rec.BranchCompany, rec.ProjectName, rec.MainContractAmount,
+			 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			rec.Period, rec.SeqNo, rec.BranchCompany, rec.ProjectName, rec.MainContractAmount,
 			rec.SubName, rec.SubTier, rec.SubProfessionRaw, rec.SubContractProfession,
 			rec.SubController, rec.SubControllerPhone,
 			rec.ContractNo, rec.ContractName, rec.ContractAmount, rec.SupplementAmount,
@@ -234,6 +261,13 @@ func (h *Handler) SubcontractImport(w http.ResponseWriter, r *http.Request) {
 	}
 	defer os.Remove(tmpPath)
 
+	// 账期（年月）由导入弹窗手动选择，台账文件名不一定带日期。
+	period := strings.TrimSpace(r.FormValue("period"))
+	if period == "" {
+		http.Error(w, "请选择账期（年月，如 2026-06）", http.StatusBadRequest)
+		return
+	}
+
 	records, err := services.ParseSubcontractExcel(tmpPath)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("parse failed: %v", err), http.StatusBadRequest)
@@ -246,21 +280,33 @@ func (h *Handler) SubcontractImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Wipe + re-insert as one transaction: on a fatal error the old data is
-	// left intact instead of being destroyed by a bad file.
+	// 按账期分快照：只覆盖本账期的数据，其它月份不受影响。整个过程放在一个事务里，
+	// 出错则回滚，避免坏文件破坏该账期的既有数据。
 	tx, err := database.DB.Begin()
 	if err != nil {
 		http.Error(w, fmt.Sprintf("begin tx: %v", err), http.StatusInternalServerError)
 		return
 	}
-	if _, err := tx.Exec("DELETE FROM project_subcontract"); err != nil {
+
+	// 记录本账期覆盖前已存在的合同编号，用于统计"新增/更新"。
+	existing := map[string]bool{}
+	if erows, e := tx.Query("SELECT contract_no FROM project_subcontract WHERE period=? AND contract_no!=''", period); e == nil {
+		for erows.Next() {
+			var c string
+			erows.Scan(&c)
+			existing[c] = true
+		}
+		erows.Close()
+	}
+
+	if _, err := tx.Exec("DELETE FROM project_subcontract WHERE period=?", period); err != nil {
 		tx.Rollback()
 		http.Error(w, fmt.Sprintf("clear failed: %v", err), http.StatusInternalServerError)
 		return
 	}
 
 	stmt, err := tx.Prepare(
-		`INSERT INTO project_subcontract (seq_no,branch_company,project_name,main_contract_amount,
+		`INSERT INTO project_subcontract (period,seq_no,branch_company,project_name,main_contract_amount,
 		 sub_name,sub_tier,sub_profession_raw,sub_contract_profession,sub_controller,sub_controller_phone,
 		 contract_no,contract_name,contract_amount,supplement_amount,contract_date,progress_percent,
 		 entry_date,exit_date,evaluation_completed,personnel_count,
@@ -269,7 +315,7 @@ func (h *Handler) SubcontractImport(w http.ResponseWriter, r *http.Request) {
 		 safety_officer,safety_officer_approved,safety_officer_status,
 		 contract_compliance,noncompliance_note,remarks,
 		 project_short_name,standardized_profession,profession_category)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 	if err != nil {
 		tx.Rollback()
 		http.Error(w, fmt.Sprintf("prepare failed: %v", err), http.StatusInternalServerError)
@@ -280,14 +326,18 @@ func (h *Handler) SubcontractImport(w http.ResponseWriter, r *http.Request) {
 	// Match project_short_name against projects table (best-effort).
 	nameToShort := loadProjectNameMapping()
 
-	imported := 0
+	added, updated := 0, 0
 	var errs []string
 	for _, rec := range records {
+		if strings.TrimSpace(rec.ContractNo) == "" {
+			errs = append(errs, fmt.Sprintf("行[%s]：缺分包合同编号，已跳过", rec.SubName))
+			continue
+		}
 		if rec.ProjectName != "" {
 			rec.ProjectShortName = matchProject(rec.ProjectName, nameToShort)
 		}
 		_, err := stmt.Exec(
-			rec.SeqNo, rec.BranchCompany, rec.ProjectName, rec.MainContractAmount,
+			period, rec.SeqNo, rec.BranchCompany, rec.ProjectName, rec.MainContractAmount,
 			rec.SubName, rec.SubTier, rec.SubProfessionRaw, rec.SubContractProfession,
 			rec.SubController, rec.SubControllerPhone,
 			rec.ContractNo, rec.ContractName, rec.ContractAmount, rec.SupplementAmount,
@@ -299,10 +349,14 @@ func (h *Handler) SubcontractImport(w http.ResponseWriter, r *http.Request) {
 			rec.ContractCompliance, rec.NoncomplianceNote, rec.Remarks,
 			rec.ProjectShortName, rec.StandardizedProfession, rec.ProfessionCategory)
 		if err != nil {
-			errs = append(errs, fmt.Sprintf("row %s: %v", rec.SubName, err))
+			errs = append(errs, fmt.Sprintf("行[%s]：%v", rec.SubName, err))
 			continue
 		}
-		imported++
+		if existing[rec.ContractNo] {
+			updated++
+		} else {
+			added++
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -312,7 +366,11 @@ func (h *Handler) SubcontractImport(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"imported": imported,
+		"period":   period,
+		"added":    added,
+		"updated":  updated,
+		"skipped":  len(errs),
+		"imported": added + updated,
 		"errors":   errs,
 	})
 }

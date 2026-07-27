@@ -138,25 +138,42 @@ func copyFile(src, dst string) error {
 	return err
 }
 
+// parseStatusFilter 解析 status 查询参数（逗号分隔），仅保留合法状态值；
+// 传入空、"全部" 或全部非法时返回 nil（表示不加状态过滤，即"全部"）。
+func parseStatusFilter(raw string) []string {
+	if raw == "" || raw == "全部" {
+		return nil
+	}
+	valid := map[string]bool{"未开工": true, "在建": true, "停工": true, "完工": true}
+	var out []string
+	for _, p := range strings.Split(raw, ",") {
+		p = strings.TrimSpace(p)
+		if valid[p] {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 // ContractDistribution returns contract amount grouped by region or country.
 // GET /api/dashboard/contract-distribution?dim=region&status=在建,未开工
 func (h *Handler) ContractDistribution(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	// dim 仅接受 region / country，其余（含空、非法值）一律回落到默认的 region。
 	dim := r.URL.Query().Get("dim")
-	if dim == "" {
+	if dim != "country" {
 		dim = "region"
 	}
 	rawStatus := r.URL.Query().Get("status")
 
 	conditions := []string{"is_deleted=0", "domestic_overseas='境外'"}
 	args := []interface{}{}
-	if rawStatus != "" && rawStatus != "全部" {
-		parts := strings.Split(rawStatus, ",")
-		ph := make([]string, len(parts))
-		for i, p := range parts {
+	if validStatuses := parseStatusFilter(rawStatus); len(validStatuses) > 0 {
+		ph := make([]string, len(validStatuses))
+		for i, p := range validStatuses {
 			ph[i] = "?"
-			args = append(args, strings.TrimSpace(p))
+			args = append(args, p)
 		}
 		conditions = append(conditions, "project_status IN ("+strings.Join(ph, ",")+")")
 	}
@@ -252,12 +269,11 @@ func (h *Handler) RegionDetail(w http.ResponseWriter, r *http.Request) {
 	rawStatus := r.URL.Query().Get("status")
 	conditions := []string{"is_deleted=0", "domestic_overseas='境外'"}
 	args := []interface{}{}
-	if rawStatus != "" && rawStatus != "全部" {
-		parts := strings.Split(rawStatus, ",")
-		ph := make([]string, len(parts))
-		for i, p := range parts {
+	if validStatuses := parseStatusFilter(rawStatus); len(validStatuses) > 0 {
+		ph := make([]string, len(validStatuses))
+		for i, p := range validStatuses {
 			ph[i] = "?"
-			args = append(args, strings.TrimSpace(p))
+			args = append(args, p)
 		}
 		conditions = append(conditions, "project_status IN ("+strings.Join(ph, ",")+")")
 	}

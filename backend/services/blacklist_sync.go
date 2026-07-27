@@ -5,12 +5,16 @@ import (
 )
 
 // OnBlacklistChanged is called after any blacklist create/update/delete.
-// It syncs the cascading disable state for linked local subsidiaries.
+// 2026-07-26：级联关系由「国内母公司-当地公司」改为「关联单位」关系——
+// 即某分包商的「关联单位」指向本次变更的分包商（按简称或全名匹配）时，联动禁用/恢复。
 func OnBlacklistChanged(subShortName string, action string) {
-	// Find linked local subsidiaries of this domestic parent
+	// 找出"关联单位"指向该分包商（按简称，或其黑名单记录里的全名）的其它分包商
 	rows, err := database.DB.Query(
-		`SELECT short_name FROM subcontractors_base 
-		 WHERE parent_short_name=? AND registration_type='当地注册'`, subShortName)
+		`SELECT full_name FROM subcontractors_base
+		 WHERE assoc_unit!='' AND (
+		   assoc_unit=? OR
+		   assoc_unit IN (SELECT sub_full_name FROM subcontractor_blacklist WHERE sub_short_name=?)
+		 )`, subShortName, subShortName)
 	if err != nil {
 		return
 	}
@@ -22,12 +26,11 @@ func OnBlacklistChanged(subShortName string, action string) {
 		rows.Scan(&name)
 		locals = append(locals, name)
 	}
-
 	if len(locals) == 0 {
 		return
 	}
 
-	// Check if parent is currently blacklisted (status=列入中)
+	// 该分包商当前是否处于"列入中"
 	var activeCount int
 	database.DB.QueryRow(
 		`SELECT COUNT(*) FROM subcontractor_blacklist
@@ -36,24 +39,14 @@ func OnBlacklistChanged(subShortName string, action string) {
 
 	if action == "列入" || action == "编辑" {
 		if activeCount > 0 {
-			// Mark local subsidiaries as disabled in project_subcontract
 			for _, local := range locals {
-				database.DB.Exec(
-					`UPDATE project_subcontract SET is_deleted=1 WHERE sub_name=?`, local)
+				database.DB.Exec(`UPDATE project_subcontract SET is_deleted=1 WHERE sub_name=?`, local)
 			}
 		}
 	} else if action == "拉出" || action == "删除" {
-		// Check if there are any other active blacklist entries for this parent
-		var remaining int
-		database.DB.QueryRow(
-			`SELECT COUNT(*) FROM subcontractor_blacklist 
-			 WHERE sub_short_name=? AND status='列入中'`, subShortName,
-		).Scan(&remaining)
-		if remaining == 0 {
-			// Restore local subsidiaries
+		if activeCount == 0 {
 			for _, local := range locals {
-				database.DB.Exec(
-					`UPDATE project_subcontract SET is_deleted=0 WHERE sub_name=?`, local)
+				database.DB.Exec(`UPDATE project_subcontract SET is_deleted=0 WHERE sub_name=?`, local)
 			}
 		}
 	}

@@ -114,6 +114,7 @@ type SubBlacklist struct {
 // SubcontractRecord mirrors one row from the management ledger (project_subcontract table).
 type SubcontractRecord struct {
 	ID                     int     `json:"id"`
+	Period                 string  `json:"period"`
 	SeqNo                  string  `json:"seq_no"`
 	BranchCompany          string  `json:"branch_company"`
 	ProjectName            string  `json:"project_name"`
@@ -154,28 +155,38 @@ type SubcontractRecord struct {
 }
 
 // SubcontractorBase represents a subcontractor in the library.
+// 2026-07-26 重构：以「分包商编号 sub_no」为唯一键，单 Sheet 31 列模板。
 type SubcontractorBase struct {
-	ID                 int    `json:"id"`
-	ShortName          string `json:"short_name"`
-	FullName           string `json:"full_name"`
-	RegistrationType   string `json:"registration_type"`
-	Country            string `json:"country"`
-	ProfessionCategory string `json:"profession_category"`
-	Profession         string `json:"profession"`
-	OtherProfessions   string `json:"other_professions"`
-	ParentShortName    string `json:"parent_short_name"`
-	LegalRepName       string `json:"legal_rep_name"`
-	LegalRepID         string `json:"legal_rep_id"`
-	LegalRepPhone      string `json:"legal_rep_phone"`
-	ContactName        string `json:"contact_name"`
-	ContactTitle       string `json:"contact_title"`
-	ContactPhone       string `json:"contact_phone"`
-	ContactEmail       string `json:"contact_email"`
-	BizLicense         string `json:"biz_license"`
-	TaxID              string `json:"tax_id"`
-	RegAddress         string `json:"reg_address"`
-	RegCapital         string `json:"reg_capital"`
-	Notes              string `json:"notes"`
+	ID              int    `json:"id"`
+	ReportProject   string `json:"report_project"`   // 上报项目
+	SubNo           string `json:"sub_no"`           // 分包商编号（唯一键）
+	ShortName       string `json:"short_name"`       // 分包商简称
+	FullName        string `json:"full_name"`        // 分包商名称
+	Country         string `json:"country"`          // 国别
+	EnterpriseType  string `json:"enterprise_type"`  // 企业性质
+	EstablishedDate string `json:"established_date"` // 成立日期
+	RegCapital      string `json:"reg_capital"`      // 注册资金
+	LegalRep        string `json:"legal_rep"`        // 法人及身份证
+	LegalRepPhone   string `json:"legal_rep_phone"`  // 法人联系方式
+	Agent           string `json:"agent"`            // 委托代理人及身份证
+	AgentPhone      string `json:"agent_phone"`      // 委托代理人联系方式
+	Region          string `json:"region"`           // 所在地区
+	Address         string `json:"address"`          // 详细地址
+	Qualification   string `json:"qualification"`    // 资质类别及等级
+	CreditRating    string `json:"credit_rating"`    // 资信等级
+	Grade           string `json:"grade"`            // 分包商等级
+	Classification  string `json:"classification"`   // 分包商分级
+	BusinessScope   string `json:"business_scope"`   // 经营范围
+	Recommender     string `json:"recommender"`      // 推荐人
+	ReportUnit      string `json:"report_unit"`      // 上报单位
+	UnitHead        string `json:"unit_head"`        // 单位负责人
+	Category        string `json:"category"`         // 分类
+	Profession      string `json:"profession"`       // 专业
+	Notes           string `json:"notes"`            // 备注
+	AssocUnit       string `json:"assoc_unit"`       // 关联单位
+	// 汇总字段（来自项目分包，非入库列）
+	ContractCount int     `json:"contract_count"`
+	TotalAmount   float64 `json:"total_amount"`
 }
 
 // SubcontractorProject is a single cooperation history entry.

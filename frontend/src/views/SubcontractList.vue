@@ -6,7 +6,11 @@
       </el-button>
       <el-button @click="doExport">{{ $t('common.export') }}</el-button>
       <el-button type="success" @click="openDialog()">{{ $t('common.create') }}</el-button>
-      <el-select v-model="dim" style="width:140px;margin-left:8px" @change="load">
+      <el-select v-model="period" style="width:150px;margin-left:8px" @change="load">
+        <el-option label="全部账期(汇总)" value="all" />
+        <el-option v-for="p in periods" :key="p" :label="'账期 ' + p" :value="p" />
+      </el-select>
+      <el-select v-model="dim" style="width:130px" @change="load">
         <el-option label="按项目" value="project" />
         <el-option label="按分包商" value="sub" />
       </el-select>
@@ -22,7 +26,7 @@
       <el-input v-model="keyword" :placeholder="$t('common.search')" clearable style="width:200px" @input="load" />
     </div>
     <div class="stats-bar">
-      <span>共 <b>{{ total }}</b> 条合同，合计 <b>{{ fmtAmount(totalAmount) }}</b> 万元</span>
+      <span>共 <b>{{ total }}</b> 条合同，合计 <b>{{ fmtAmount(totalAmount) }}</b></span>
     </div>
     <el-table :data="records" stripe max-height="calc(100vh - 220px)" @row-click="showDetail"
       :row-class-name="rowClassName">
@@ -108,6 +112,8 @@ const records = ref<any[]>([])
 const total = ref(0)
 const totalAmount = ref(0)
 const dim = ref('project')
+const period = ref('')
+const periods = ref<string[]>([])
 const filterTier = ref('')
 const filterCategory = ref('')
 const filterProfession = ref('')
@@ -135,6 +141,7 @@ function rowClassName({ row }: any) {
 
 async function load() {
   const params: any = { dim: dim.value }
+  if (period.value) params.period = period.value
   if (filterTier.value) params.tier = filterTier.value
   if (filterCategory.value) params.category = filterCategory.value
   if (filterProfession.value) params.profession = filterProfession.value
@@ -144,19 +151,38 @@ async function load() {
     records.value = data.records || []
     total.value = data.total_count || 0
     totalAmount.value = data.total_amount || 0
+    periods.value = data.periods || []
+    // 首次加载时同步服务端选定的默认账期（最新账期）
+    if (period.value === '' && data.period) period.value = data.period
   } catch { /* ignore */ }
 }
 
 async function doImport(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
   if (!file) return
+  // 账期（年月）手动选择：台账文件名不一定带日期
+  let picked: string
+  try {
+    const def = period.value && period.value !== 'all' ? period.value : new Date().toISOString().slice(0, 7)
+    const r = await ElMessageBox.prompt('请选择本次台账的账期（年月）', '导入账期', {
+      inputValue: def,
+      inputPattern: /^\d{4}-\d{2}$/,
+      inputErrorMessage: '格式为 YYYY-MM，如 2026-06',
+      confirmButtonText: '导入', cancelButtonText: '取消',
+    })
+    picked = (r.value || '').trim()
+  } catch { input.value = ''; return } // 用户取消
   const fd = new FormData()
   fd.append('file', file)
+  fd.append('period', picked)
   try {
     const { data } = await axios.post('/api/subcontract/import', fd)
-    ElMessage.success('导入 ' + (data.imported || 0) + ' 条')
+    ElMessage.success(`账期 ${data.period}：新增 ${data.added || 0}、更新 ${data.updated || 0}、跳过 ${data.skipped || 0}`)
+    period.value = picked // 切到刚导入的账期
     load()
   } catch (err: any) { ElMessage.error(err?.response?.data || '导入失败') }
+  finally { input.value = '' }
 }
 
 async function doExport() {
@@ -192,9 +218,9 @@ function openDialog(row?: any) {
 }
 
 function fmtAmount(v: number) {
-  if (!v) return '0'
+  if (!v) return '0 万元'
   if (v >= 10000) return (v / 10000).toFixed(2) + ' 亿'
-  return v.toLocaleString('zh-CN', { maximumFractionDigits: 0 })
+  return v.toLocaleString('zh-CN', { maximumFractionDigits: 0 }) + ' 万元'
 }
 
 onMounted(load)

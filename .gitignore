@@ -1,5 +1,5 @@
 # 编译产物
-backend/opims.exe
+backend/opims*.exe
 backend/frontend-dist/
 
 # 运行日志与编辑器临时文件

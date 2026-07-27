@@ -22,7 +22,7 @@ func (h *Handler) Files(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	projDir := filepath.Join(h.root.Get(), projectName)
+	projDir := filepath.Join(h.root.ProjectsDir(), projectName)
 	entries, err := os.ReadDir(projDir)
 	if err != nil {
 		json.NewEncoder(w).Encode([]models.FileNode{})
@@ -70,7 +70,7 @@ func (h *Handler) ContractsInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dir := filepath.Join(h.root.Get(), project, "01.Contract")
+	dir := filepath.Join(h.root.ProjectsDir(), project, "01.Contract")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		json.NewEncoder(w).Encode([]struct{}{})
@@ -124,7 +124,7 @@ func (h *Handler) ViewFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dir := filepath.Join(h.root.Get(), project, folder)
+	dir := filepath.Join(h.root.ProjectsDir(), project, folder)
 	var target string
 	if fileName != "" {
 		target = filepath.Join(dir, fileName)
@@ -154,10 +154,10 @@ func (h *Handler) ViewFile(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"ok": "opened"})
 }
 
-// ScanFiles scans the root directory and returns file tree.
+// ScanFiles scans the project-files directory (`<root>/01.Project Files`) and returns file tree.
 func (h *Handler) ScanFiles(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	root := h.root.Get()
+	root := h.root.ProjectsDir()
 
 	entries, err := os.ReadDir(root)
 	if err != nil {

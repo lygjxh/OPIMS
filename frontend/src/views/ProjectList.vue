@@ -216,7 +216,6 @@ const projects = ref<any[]>([])
 const page = ref(1)
 const pageSize = ref(50)
 const loading = ref(false)
-const conflictMode = ref('skip')
 const search = ref('')
 const filters = ref({ type: '', status: '', domestic: '', country: '' })
 const TYPES  = ['EPC','PC','C']

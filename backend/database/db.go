@@ -163,6 +163,7 @@ func migrate() error {
 	-- project_subcontract: mirrors the management ledger (32 columns A-AF)
 	CREATE TABLE IF NOT EXISTS project_subcontract (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		period TEXT DEFAULT '',
 		seq_no TEXT DEFAULT '',
 		branch_company TEXT DEFAULT '',
 		project_name TEXT DEFAULT '',
@@ -204,28 +205,35 @@ func migrate() error {
 	);
 
 	-- subcontractors_base: subcontractor library master data
+	-- 2026-07-26 重构：单 Sheet 31 列模板，以「分包商编号 sub_no」为唯一键。
 	CREATE TABLE IF NOT EXISTS subcontractors_base (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		short_name TEXT NOT NULL UNIQUE,
+		sub_no TEXT NOT NULL UNIQUE,
+		report_project TEXT DEFAULT '',
+		short_name TEXT DEFAULT '',
 		full_name TEXT NOT NULL,
-		registration_type TEXT NOT NULL DEFAULT '国内',
 		country TEXT DEFAULT '',
-		profession_category TEXT NOT NULL,
-		profession TEXT NOT NULL,
-		other_professions TEXT DEFAULT '',
-		parent_short_name TEXT DEFAULT '',
-		legal_rep_name TEXT NOT NULL,
-		legal_rep_id TEXT DEFAULT '',
-		legal_rep_phone TEXT NOT NULL,
-		contact_name TEXT DEFAULT '',
-		contact_title TEXT DEFAULT '',
-		contact_phone TEXT DEFAULT '',
-		contact_email TEXT DEFAULT '',
-		biz_license TEXT DEFAULT '',
-		tax_id TEXT DEFAULT '',
-		reg_address TEXT DEFAULT '',
+		enterprise_type TEXT DEFAULT '',
+		established_date TEXT DEFAULT '',
 		reg_capital TEXT DEFAULT '',
+		legal_rep TEXT DEFAULT '',
+		legal_rep_phone TEXT DEFAULT '',
+		agent TEXT DEFAULT '',
+		agent_phone TEXT DEFAULT '',
+		region TEXT DEFAULT '',
+		address TEXT DEFAULT '',
+		qualification TEXT DEFAULT '',
+		credit_rating TEXT DEFAULT '',
+		grade TEXT DEFAULT '',
+		classification TEXT DEFAULT '',
+		business_scope TEXT DEFAULT '',
+		recommender TEXT DEFAULT '',
+		report_unit TEXT DEFAULT '',
+		unit_head TEXT DEFAULT '',
+		category TEXT DEFAULT '',
+		profession TEXT DEFAULT '',
 		notes TEXT DEFAULT '',
+		assoc_unit TEXT DEFAULT '',
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
@@ -251,8 +259,21 @@ func migrate() error {
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 
+	CREATE INDEX IF NOT EXISTS idx_ps_period ON project_subcontract(period);
+	CREATE INDEX IF NOT EXISTS idx_ps_contract ON project_subcontract(contract_no);
+
 	INSERT OR IGNORE INTO app_config (key, value) VALUES ('file_root_path', '');
 	`
+
+	// project_subcontract.period must exist before the CREATE INDEX above runs on
+	// an already-populated database, so migrate the column first.
+	addColumnIfMissing("project_subcontract", "period", "TEXT DEFAULT ''")
+
+	// 分包商库 2026-07-26 重构：旧结构（含 registration_type 列）与新单 Sheet 结构
+	// 不兼容，旧库仅为测试数据，直接重建（CREATE TABLE IF NOT EXISTS 随后重新建表）。
+	if hasColumn("subcontractors_base", "registration_type") {
+		DB.Exec("DROP TABLE subcontractors_base")
+	}
 
 	if _, err := DB.Exec(schema); err != nil {
 		return err
@@ -265,12 +286,20 @@ func migrate() error {
 
 // addColumnIfMissing adds a column only if it doesn't already exist in the table.
 func addColumnIfMissing(table, column, colDef string) {
-	var count int
-	row := DB.QueryRow("SELECT COUNT(*) FROM pragma_table_info(?) WHERE name=?", table, column)
-	if err := row.Scan(&count); err != nil || count > 0 {
+	if hasColumn(table, column) {
 		return
 	}
 	DB.Exec("ALTER TABLE " + table + " ADD COLUMN " + column + " " + colDef)
+}
+
+// hasColumn reports whether the given table currently has the given column.
+func hasColumn(table, column string) bool {
+	var count int
+	row := DB.QueryRow("SELECT COUNT(*) FROM pragma_table_info(?) WHERE name=?", table, column)
+	if err := row.Scan(&count); err != nil {
+		return false
+	}
+	return count > 0
 }
 
 func Close() error {

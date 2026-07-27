@@ -98,10 +98,15 @@ type nameMapping struct{ ShortName, ContractNo string }
 
 func loadNameMapping(rootPath string) map[string]nameMapping {
 	mapping := map[string]nameMapping{}
-	// 优先在文件根目录下查找简称映射表；找不到时再试同级的
-	// 「01.项目管理情况汇总表」目录（汇总表的惯用存放位置）。
+	// 简称映射表查找顺序（rootPath = 新根 `海外运营中心`）：
+	// 1. 与汇总表同文件夹 `<根>/01.项目管理情况汇总表/`（惯用存放位置）
+	// 2. `<根>/01.Project Files/`
+	// 3. `<根>/` 直放
+	// 4. 旧根兼容：`<根>/../01.项目管理情况汇总表/`
 	// 不使用任何绝对路径，换机器/换目录靠「设置根目录」功能适配。
 	paths := []string{
+		filepath.Join(rootPath, "01.项目管理情况汇总表", "海外项目简称.xlsx"),
+		filepath.Join(rootPath, "01.Project Files", "海外项目简称.xlsx"),
 		filepath.Join(rootPath, "海外项目简称.xlsx"),
 		filepath.Join(rootPath, "..", "01.项目管理情况汇总表", "海外项目简称.xlsx"),
 	}
@@ -214,4 +219,24 @@ func chineseNumber(n int) string {
 func jsonOK(w http.ResponseWriter, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(v)
+}
+
+// friendlyDBError 把 SQLite 的原始错误（尤其是唯一约束冲突）转成面向用户的中文提示，
+// 避免把 "UNIQUE constraint failed: projects.short_name (2067)" 这类信息直接抛给前端。
+func friendlyDBError(err error) string {
+	if err == nil {
+		return ""
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "UNIQUE constraint failed") {
+		switch {
+		case strings.Contains(msg, "short_name"):
+			return "项目简称已存在，请使用其他简称"
+		case strings.Contains(msg, "contract_no"):
+			return "合同编号已存在，请检查后重试"
+		default:
+			return "该记录与已有数据冲突（存在重复的唯一字段）"
+		}
+	}
+	return msg
 }

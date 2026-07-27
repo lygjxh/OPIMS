@@ -98,6 +98,17 @@ func (h *Handler) SubBlacklistByID(w http.ResponseWriter, r *http.Request) {
 			b.Status = "已拉出"
 		}
 
+		// 拉出（置为已拉出）时，拉出原因/拉出日期/拉出提报人三者必须齐全，
+		// 否则会产生"已锁定但信息不全"的记录（板块要求 6.3）。
+		if b.Status == "已拉出" {
+			if strings.TrimSpace(b.DelistReason) == "" ||
+				strings.TrimSpace(b.DelistDate) == "" ||
+				strings.TrimSpace(b.DelistReporter) == "" {
+				http.Error(w, "拉出时必须填写拉出原因、拉出日期、拉出提报人", http.StatusBadRequest)
+				return
+			}
+		}
+
 		var cur string
 		database.DB.QueryRow("SELECT status FROM subcontractor_blacklist WHERE id=?", id).Scan(&cur)
 		if cur == "已拉出" {
