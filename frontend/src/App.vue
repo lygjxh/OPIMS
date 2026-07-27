@@ -90,7 +90,7 @@ const mainMenu = [
 const extMenu = [
   { path: '/subcontract', key: 'subcontract', icon: Connection, disabled: false },
   { path: '/subcontractors', key: 'subcontractors', icon: OfficeBuilding, disabled: false },
-  { path: '/progress', key: 'progress', icon: TrendCharts, disabled: true },
+  { path: '/progress', key: 'progress', icon: TrendCharts, disabled: false },
   { path: '/quality', key: 'quality', icon: CircleCheck, disabled: true },
   { path: '/personnel', key: 'personnel', icon: Avatar, disabled: true },
 ]

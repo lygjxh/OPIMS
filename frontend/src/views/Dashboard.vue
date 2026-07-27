@@ -338,7 +338,7 @@ const shortcuts = [
   { path: '/blacklist-sub', label: t('menu.blacklistSub'), icon: WarningFilled, ready: true },
   { path: '/country-profile', label: t('menu.countryProfile'), icon: Flag, ready: true },
   { path: '/blacklist-person', label: t('menu.blacklistPerson'), icon: UserFilled, ready: false },
-  { path: '/progress', label: t('menu.progress'), icon: TrendCharts, ready: false },
+  { path: '/progress', label: t('menu.progress'), icon: TrendCharts, ready: true },
   { path: '/quality', label: t('menu.quality'), icon: CircleCheck, ready: false },
   { path: '/subcontract', label: t('menu.subcontract'), icon: Connection, ready: true },
   { path: '/subcontractors', label: t('menu.subcontractors'), icon: OfficeBuilding, ready: true },

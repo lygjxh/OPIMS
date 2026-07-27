@@ -82,6 +82,7 @@ func main() {
 	mux.HandleFunc("/api/policy/countries", h.PolicyCountries)
 	mux.HandleFunc("/api/policy/country/", h.PolicyCountryByName)
 	mux.HandleFunc("/api/policy/internal", h.PolicyInternal)
+	mux.HandleFunc("/api/progress/check", h.ProgressCheck)
 	mux.HandleFunc("/api/config/backup", h.Backup)
 	mux.HandleFunc("/api/config/restore", h.Restore)
 
