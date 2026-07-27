@@ -99,11 +99,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { Clock, Warning, OfficeBuilding, Document, FolderDelete, InfoFilled } from '@element-plus/icons-vue'
 
+const route = useRoute()
+const router = useRouter()
 const list = ref<any[]>([])
 const loading = ref(false)
 const errMsg = ref('')
@@ -149,6 +152,7 @@ async function load() {
     list.value = data.countries || []
     errMsg.value = ''
     loadProjectCounts()
+    openFromQuery()
   } catch (e: any) {
     const d = e.response?.data
     errMsg.value = d?.error || '读取政策库失败'
@@ -182,6 +186,17 @@ async function openDetail(c: any) {
     ElMessage.error(e.response?.data?.error || '读取该国档案失败')
   }
 }
+
+/** 支持从别处（项目详情、首页地图）带 ?country=xxx 直接打开某国档案 */
+async function openFromQuery() {
+  const c = route.query.country
+  if (typeof c !== 'string' || !c) return
+  await openDetail({ country: c })
+}
+// 抽屉关闭时清掉 query，避免刷新页面又自动弹出
+watch(detailVisible, v => {
+  if (!v && route.query.country) router.replace({ path: '/country-profile' })
+})
 
 async function showInternal() {
   try {

@@ -121,7 +121,17 @@
           <div class="card-group">
             <div class="card-title">地点 & 日期</div>
             <table class="info-table"><tbody>
-              <tr><td class="k">国别</td><td class="v">{{ detail.country || '-' }}</td><td class="k">省</td><td class="v">{{ detail.province || '-' }}</td><td class="k">市</td><td class="v">{{ detail.city || '-' }}</td></tr>
+              <tr><td class="k">国别</td><td class="v">
+                <template v-if="detail.country">
+                  <a v-if="hasPolicy(detail.country)" class="country-link"
+                     :title="`查看 ${detail.country} 出入境政策`"
+                     @click="gotoPolicy(detail.country)">
+                    {{ detail.country }}<el-icon><Right /></el-icon>
+                  </a>
+                  <template v-else>{{ detail.country }}</template>
+                </template>
+                <template v-else>-</template>
+              </td><td class="k">省</td><td class="v">{{ detail.province || '-' }}</td><td class="k">市</td><td class="v">{{ detail.city || '-' }}</td></tr>
               <tr><td class="k">详细地址</td><td class="v" colspan="5">{{ detail.address || '-' }}</td></tr>
               <tr><td class="k">合同开工</td><td class="v">{{ fmtDate(detail.contract_start_year, detail.contract_start_month) }}</td><td class="k">合同竣工</td><td class="v">{{ fmtDate(detail.contract_end_year, detail.contract_end_month) }}</td><td class="k">合同工期(月)</td><td class="v">{{ detail.contract_duration || '-' }}</td></tr>
               <tr><td class="k">实际开工</td><td class="v">{{ fmtDate(detail.actual_start_year, detail.actual_start_month) }}</td><td class="k">计划完工</td><td class="v">{{ fmtDate(detail.plan_end_year, detail.plan_end_month) }}</td><td class="k">实际工期(月)</td><td class="v">{{ detail.actual_duration || '-' }}</td></tr>
@@ -206,12 +216,27 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Close } from '@element-plus/icons-vue'
+import { Close, Right } from '@element-plus/icons-vue'
 
 const route = useRoute()
+const router = useRouter()
+
+/* 有出入境政策档案的国别（用于把项目详情里的国别做成跳转链接）。
+   只对确实有档案的国别加链接，避免点进去是「未找到」。 */
+const policyCountries = ref<Set<string>>(new Set())
+const hasPolicy = (c: string) => policyCountries.value.has(c)
+function gotoPolicy(country: string) {
+  router.push({ path: '/country-profile', query: { country } })
+}
+async function loadPolicyCountries() {
+  try {
+    const { data } = await axios.get('/api/policy/countries')
+    policyCountries.value = new Set((data.countries || []).map((c: any) => c.country))
+  } catch { /* 政策库未配置时静默跳过，不影响项目清单本身 */ }
+}
 const projects = ref<any[]>([])
 const page = ref(1)
 const pageSize = ref(50)
@@ -414,7 +439,7 @@ async function exportExcel() {
   } catch{}
 }
 
-onMounted(() => { applyRouteQuery(); load() })
+onMounted(() => { applyRouteQuery(); load(); loadPolicyCountries() })
 </script>
 
 <style scoped>
@@ -461,6 +486,14 @@ onMounted(() => { applyRouteQuery(); load() })
 .op-btn.danger:hover { color: #a82c2c; }
 .op-btn:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 1px; }
 .op-sep { width: 1px; height: 11px; background: var(--c-border-strong); flex-shrink: 0; }
+
+/* 项目详情里的国别跳转链接：仅在该国有政策档案时出现 */
+.country-link {
+  display: inline-flex; align-items: center; gap: 2px;
+  color: var(--c-primary); cursor: pointer; font-weight: 500;
+}
+.country-link:hover { text-decoration: underline; }
+.country-link .el-icon { font-size: 12px; }
 
 .pager { justify-content: flex-end; padding-top: 4px; }
 .detail-scroll { max-height: 70vh; overflow-y: auto; padding-right: 4px; }

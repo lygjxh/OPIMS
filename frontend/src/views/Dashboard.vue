@@ -127,6 +127,32 @@
       </div>
     </el-card>
 
+    <!-- 地图点击 → 该国出入境政策摘要 -->
+    <el-dialog v-model="policyVisible" :title="`${policyItem?.country} · 出入境政策`" width="480px">
+      <template v-if="policyItem">
+        <div class="pol-risk" :class="'pr-' + riskKey(policyItem.risk_level)">
+          <strong>{{ policyItem.risk_level || '未评级' }}风险</strong>
+          <span>{{ policyItem.risk_note }}</span>
+        </div>
+        <table class="pol-table">
+          <tbody>
+            <tr><th>签证类型</th><td>{{ policyItem.visa_type || '-' }}</td></tr>
+            <tr><th>预计办理周期</th><td>{{ policyItem.total_cycle || '-' }}</td></tr>
+            <tr><th>更新日期</th><td>
+              {{ policyItem.updated_at || '未填写' }}
+              <span v-if="policyItem.is_stale" class="pol-stale">
+                （{{ policyItem.stale_days }} 天前，建议核查）
+              </span>
+            </td></tr>
+          </tbody>
+        </table>
+      </template>
+      <template #footer>
+        <el-button @click="policyVisible = false">关闭</el-button>
+        <el-button type="primary" @click="gotoPolicyDetail">查看完整档案</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 地区下钻弹窗 -->
     <el-dialog v-model="drillVisible" :title="`${drillRegion} · 国别明细`" width="520px">
       <div class="bars">
@@ -336,6 +362,7 @@ onMounted(async () => {
     projects.value = data.projects || []
   } catch { projects.value = [] }
   await loadDistribution()
+  loadPolicies()
   await nextTick()
   drawMap()
 })
@@ -406,6 +433,40 @@ function addMarker(lat: number, lng: number, name: string, status: string, count
     `${name}<br><span style="color:#64748b">${status || '未知状态'} · ${country || '-'}${approx ? ' · 按国别近似' : ''}</span>`,
     { direction: 'top' }
   )
+  // 点击标记：若该国有出入境政策档案，弹出摘要并可跳转查看
+  mk.on('click', () => showCountryPolicy(country))
+}
+
+/* ---- 地图点击 → 该国出入境政策摘要 ---- */
+// 风险等级 → 样式后缀（与国别档案页保持一致；颜色之外必有文字标签）
+const riskKey = (lv: string) =>
+  ({ 高: 'high', 中: 'mid', 低: 'low' } as Record<string, string>)[lv] || 'na'
+const policyMap = ref<Record<string, any>>({})
+const policyVisible = ref(false)
+const policyItem = ref<any>(null)
+
+async function loadPolicies() {
+  try {
+    const { data } = await axios.get('/api/policy/countries')
+    const m: Record<string, any> = {}
+    for (const c of data.countries || []) m[c.country] = c
+    policyMap.value = m
+  } catch { /* 政策库未配置时静默跳过，不影响看板 */ }
+}
+
+function showCountryPolicy(country: string) {
+  const p = policyMap.value[country]
+  if (!p) {
+    ElMessage.info(`${country || '该国'} 暂无出入境政策档案`)
+    return
+  }
+  policyItem.value = p
+  policyVisible.value = true
+}
+
+function gotoPolicyDetail() {
+  policyVisible.value = false
+  router.push({ path: '/country-profile', query: { country: policyItem.value.country } })
 }
 </script>
 
@@ -527,6 +588,25 @@ function addMarker(lat: number, lng: number, name: string, status: string, count
   display: flex; align-items: center; gap: 5px; margin: 12px 0 0;
   font-size: 11.5px; color: var(--c-text-muted);
 }
+
+/* ---- 地图点击弹出的政策摘要 ---- */
+.pol-risk {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 10px 13px; border-radius: 8px; margin-bottom: 14px;
+  font-size: 12.5px; line-height: 1.7;
+  background: #fdf5f5; border: 1px solid #f0d5d5;
+}
+.pol-risk.pr-mid { background: #fdf8ee; border-color: #f0e3c5; }
+.pol-risk.pr-low { background: #f2faf2; border-color: #cfe8cf; }
+.pol-risk.pr-na { background: #f6f9fe; border-color: var(--c-border); }
+.pol-risk strong { font-size: 13px; }
+.pol-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.pol-table th, .pol-table td {
+  border: 1px solid var(--c-border); padding: 7px 10px;
+  text-align: left; vertical-align: top; line-height: 1.7;
+}
+.pol-table th { background: #f6f9fe; color: var(--c-text-muted); font-weight: 500; width: 96px; white-space: nowrap; }
+.pol-stale { color: #a8730a; }
 .bars { display: flex; flex-direction: column; gap: 2px; }
 .bar-row {
   display: grid; grid-template-columns: 92px 1fr 82px 48px;
