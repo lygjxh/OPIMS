@@ -6,9 +6,14 @@ import (
 	"testing"
 )
 
-// TestOnBlacklistChangedCascade verifies that blacklisting a domestic parent
-// cascades a disable (is_deleted=1) onto its 当地注册 local subsidiaries'
-// project_subcontract rows, and that de-listing restores them.
+// TestOnBlacklistChangedCascade verifies that blacklisting a subcontractor
+// cascades a disable (is_deleted=1) onto the project_subcontract rows of any
+// subcontractor whose 关联单位(assoc_unit) points at it, and that de-listing restores them.
+//
+// 2026-07-26 起 subcontractors_base 改为单 Sheet 31 列结构：级联关系由
+// registration_type/parent_short_name 改为 assoc_unit，本测试已同步更新。
+// 注意：联动匹配的是 full_name（见 blacklist_sync.go 的 SELECT full_name），
+// 因此 project_subcontract.sub_name 必须填全名。
 func TestOnBlacklistChangedCascade(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "cascade.db")
 	if err := database.Init(dbPath); err != nil {
@@ -16,22 +21,22 @@ func TestOnBlacklistChangedCascade(t *testing.T) {
 	}
 	defer database.Close()
 
-	// Local subsidiary of domestic parent PARENT1.
+	// 关联单位指向 PARENT1 的分包商
 	_, err := database.DB.Exec(`INSERT INTO subcontractors_base
-		(short_name,full_name,registration_type,profession_category,profession,parent_short_name,legal_rep_name,legal_rep_phone)
-		VALUES ('LOCAL1','Local One','当地注册','施工','土建','PARENT1','rep','123')`)
+		(sub_no,short_name,full_name,country,category,profession,assoc_unit)
+		VALUES ('S001','LOCAL1','Local One','印尼','施工','土建','PARENT1')`)
 	if err != nil {
 		t.Fatalf("insert sub: %v", err)
 	}
-	// A subcontract row whose sub_name = the local's short_name.
-	_, err = database.DB.Exec(`INSERT INTO project_subcontract (sub_name) VALUES ('LOCAL1')`)
+	// 分包合同行的 sub_name 用全名，与联动逻辑一致
+	_, err = database.DB.Exec(`INSERT INTO project_subcontract (sub_name) VALUES ('Local One')`)
 	if err != nil {
 		t.Fatalf("insert subcontract: %v", err)
 	}
 
 	getDeleted := func() int {
 		var d int
-		database.DB.QueryRow(`SELECT is_deleted FROM project_subcontract WHERE sub_name='LOCAL1'`).Scan(&d)
+		database.DB.QueryRow(`SELECT is_deleted FROM project_subcontract WHERE sub_name='Local One'`).Scan(&d)
 		return d
 	}
 
@@ -56,8 +61,9 @@ func TestOnBlacklistChangedCascade(t *testing.T) {
 	}
 }
 
-// TestOnBlacklistChangedMultipleActiveEntries reproduces the COUNT(*)->bool edge:
-// when a parent has >1 active blacklist rows, scanning COUNT into a bool fails.
+// TestOnBlacklistChangedMultipleActiveEntries 覆盖同一分包商存在多条"列入中"
+// 黑名单记录的情况：联动判断用的是 COUNT(*) > 0，多条记录也应正常级联
+// （历史上曾把 COUNT 扫描进 bool 导致多条时失败，此测试守住该回归）。
 func TestOnBlacklistChangedMultipleActiveEntries(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "cascade2.db")
 	if err := database.Init(dbPath); err != nil {
@@ -65,21 +71,28 @@ func TestOnBlacklistChangedMultipleActiveEntries(t *testing.T) {
 	}
 	defer database.Close()
 
-	database.DB.Exec(`INSERT INTO subcontractors_base
-		(short_name,full_name,registration_type,profession_category,profession,parent_short_name,legal_rep_name,legal_rep_phone)
-		VALUES ('LOCAL1','Local One','当地注册','施工','土建','PARENT1','rep','123')`)
-	database.DB.Exec(`INSERT INTO project_subcontract (sub_name) VALUES ('LOCAL1')`)
+	if _, err := database.DB.Exec(`INSERT INTO subcontractors_base
+		(sub_no,short_name,full_name,country,category,profession,assoc_unit)
+		VALUES ('S001','LOCAL1','Local One','印尼','施工','土建','PARENT1')`); err != nil {
+		t.Fatalf("insert sub: %v", err)
+	}
+	if _, err := database.DB.Exec(`INSERT INTO project_subcontract (sub_name) VALUES ('Local One')`); err != nil {
+		t.Fatalf("insert subcontract: %v", err)
+	}
 
-	// Two active blacklist entries for the same parent.
-	database.DB.Exec(`INSERT INTO subcontractor_blacklist (sub_short_name,sub_full_name,list_date,status) VALUES ('PARENT1','Parent','2026-07-25','列入中')`)
-	database.DB.Exec(`INSERT INTO subcontractor_blacklist (sub_short_name,sub_full_name,list_date,status) VALUES ('PARENT1','Parent','2026-07-25','列入中')`)
+	// 同一分包商的两条"列入中"记录
+	for i := 0; i < 2; i++ {
+		if _, err := database.DB.Exec(`INSERT INTO subcontractor_blacklist
+			(sub_short_name,sub_full_name,list_date,status) VALUES ('PARENT1','Parent','2026-07-25','列入中')`); err != nil {
+			t.Fatalf("insert blacklist: %v", err)
+		}
+	}
 
 	OnBlacklistChanged("PARENT1", "列入")
 
 	var d int
-	database.DB.QueryRow(`SELECT is_deleted FROM project_subcontract WHERE sub_name='LOCAL1'`).Scan(&d)
-	t.Logf("with 2 active blacklist rows, is_deleted=%d (want 1)", d)
+	database.DB.QueryRow(`SELECT is_deleted FROM project_subcontract WHERE sub_name='Local One'`).Scan(&d)
 	if d != 1 {
-		t.Errorf("BUG: COUNT(*)->bool scan fails when >1 active entries; is_deleted=%d, cascade skipped", d)
+		t.Errorf("存在 2 条列入中记录时未级联禁用：is_deleted=%d，期望 1", d)
 	}
 }
