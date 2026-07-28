@@ -87,6 +87,7 @@ func main() {
 	mux.HandleFunc("/api/progress/snapshot", h.ProgressSnapshot)
 	mux.HandleFunc("/api/progress/compliance", h.ProgressCompliance)
 	mux.HandleFunc("/api/progress/compliance/export", h.ProgressComplianceExport)
+	mux.HandleFunc("/api/timebar", h.TimeBarList)
 	mux.HandleFunc("/api/config/backup", h.Backup)
 	mux.HandleFunc("/api/config/restore", h.Restore)
 
