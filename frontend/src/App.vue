@@ -73,7 +73,7 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import {
   DataBoard, List, FolderOpened, WarningFilled, UserFilled,
-  TrendCharts, CircleCheck, Connection, Avatar, Switch, OfficeBuilding, Flag, AlarmClock,
+  TrendCharts, CircleCheck, Connection, Avatar, Switch, OfficeBuilding, Flag, AlarmClock, FolderChecked,
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -92,6 +92,7 @@ const extMenu = [
   { path: '/subcontractors', key: 'subcontractors', icon: OfficeBuilding, disabled: false },
   { path: '/progress', key: 'progress', icon: TrendCharts, disabled: false },
   { path: '/timebar', key: 'timebar', icon: AlarmClock, disabled: false },
+  { path: '/archive', key: 'archive', icon: FolderChecked, disabled: false },
   { path: '/quality', key: 'quality', icon: CircleCheck, disabled: true },
   { path: '/personnel', key: 'personnel', icon: Avatar, disabled: true },
 ]

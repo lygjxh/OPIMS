@@ -88,6 +88,11 @@ func main() {
 	mux.HandleFunc("/api/progress/compliance", h.ProgressCompliance)
 	mux.HandleFunc("/api/progress/compliance/export", h.ProgressComplianceExport)
 	mux.HandleFunc("/api/timebar", h.TimeBarList)
+	mux.HandleFunc("/api/archive/inbox", h.ArchiveInbox)
+	mux.HandleFunc("/api/archive/plan", h.ArchivePlan)
+	mux.HandleFunc("/api/archive/apply", h.ArchiveApply)
+	mux.HandleFunc("/api/archive/log", h.ArchiveLog)
+	mux.HandleFunc("/api/archive/undo", h.ArchiveUndo)
 	mux.HandleFunc("/api/config/backup", h.Backup)
 	mux.HandleFunc("/api/config/restore", h.Restore)
 

@@ -311,6 +311,22 @@ func migrate() error {
 
 	CREATE INDEX IF NOT EXISTS idx_snap_period ON submission_snapshot(period);
 
+	-- 进度管理 · 收文改名归档操作日志（需求 V1.1 4.4，一期 1c）
+	-- 这是 OPIMS 第一个写云盘文件的功能，每次操作必须留痕以便回滚与追溯。
+	CREATE TABLE IF NOT EXISTS archive_log (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		operator TEXT DEFAULT '',
+		source_path TEXT NOT NULL,
+		target_path TEXT NOT NULL,
+		project TEXT DEFAULT '',
+		code TEXT DEFAULT '',
+		period TEXT DEFAULT '',
+		overwrite INTEGER DEFAULT 0,
+		undone INTEGER DEFAULT 0,
+		undone_at TEXT DEFAULT '',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
 	INSERT OR IGNORE INTO app_config (key, value) VALUES ('file_root_path', '');
 	`
 

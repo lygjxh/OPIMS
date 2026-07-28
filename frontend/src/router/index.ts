@@ -8,6 +8,7 @@ const router = createRouter({
     { path: '/files', name: 'files', component: () => import('../views/FileManager.vue') },
     { path: '/blacklist-sub', name: 'blacklistSub', component: () => import('../views/SubBlacklist.vue') },
     { path: '/country-profile', name: 'countryProfile', component: () => import('../views/CountryProfile.vue') },
+    { path: '/archive', name: 'archive', component: () => import('../views/ArchiveInbox.vue') },
     { path: '/timebar', name: 'timebar', component: () => import('../views/TimeBar.vue') },
     { path: '/progress', name: 'progress', component: () => import('../views/ProgressCheck.vue') },
     { path: '/quality', name: 'quality', component: () => import('../views/Placeholder.vue') },
