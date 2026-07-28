@@ -83,6 +83,10 @@ func main() {
 	mux.HandleFunc("/api/policy/country/", h.PolicyCountryByName)
 	mux.HandleFunc("/api/policy/internal", h.PolicyInternal)
 	mux.HandleFunc("/api/progress/check", h.ProgressCheck)
+	mux.HandleFunc("/api/progress/review", h.ProgressReview)
+	mux.HandleFunc("/api/progress/snapshot", h.ProgressSnapshot)
+	mux.HandleFunc("/api/progress/compliance", h.ProgressCompliance)
+	mux.HandleFunc("/api/progress/compliance/export", h.ProgressComplianceExport)
 	mux.HandleFunc("/api/config/backup", h.Backup)
 	mux.HandleFunc("/api/config/restore", h.Restore)
 

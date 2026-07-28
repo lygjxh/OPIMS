@@ -262,6 +262,55 @@ func migrate() error {
 	CREATE INDEX IF NOT EXISTS idx_ps_period ON project_subcontract(period);
 	CREATE INDEX IF NOT EXISTS idx_ps_contract ON project_subcontract(contract_no);
 
+	-- 进度管理 · 人工复核（需求 V1.1 4.2.5）
+	-- 系统按文件判定难免有偏差（如云盘同步重写了 mtime、个别文件未按流程归档），
+	-- 管理员可修正判定并留备注。一个「周期+项目+文件类型」至多一条复核记录。
+	CREATE TABLE IF NOT EXISTS submission_review (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		period TEXT NOT NULL,
+		project TEXT NOT NULL,
+		code TEXT NOT NULL,
+		status TEXT NOT NULL DEFAULT '',
+		note TEXT DEFAULT '',
+		reviewer TEXT DEFAULT '',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		UNIQUE(period, project, code)
+	);
+
+	-- 进度管理 · 复核操作留痕（需求 V1.1 4.2.5「所有修改留痕」）
+	CREATE TABLE IF NOT EXISTS submission_review_log (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		period TEXT NOT NULL,
+		project TEXT NOT NULL,
+		code TEXT NOT NULL,
+		old_status TEXT DEFAULT '',
+		new_status TEXT DEFAULT '',
+		note TEXT DEFAULT '',
+		reviewer TEXT DEFAULT '',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
+	-- 进度管理 · 每期核查快照（需求 V1.1 4.2.6）
+	-- 快照是考核的客观数据源：文件事后可能被删改，快照锁定核查当时的事实。
+	CREATE TABLE IF NOT EXISTS submission_snapshot (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		period TEXT NOT NULL,
+		project TEXT NOT NULL,
+		code TEXT NOT NULL,
+		required INTEGER DEFAULT 1,
+		status TEXT NOT NULL,
+		file_name TEXT DEFAULT '',
+		submit_at TEXT DEFAULT '',
+		deadline TEXT DEFAULT '',
+		reviewed INTEGER DEFAULT 0,
+		note TEXT DEFAULT '',
+		taken_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		UNIQUE(period, project, code)
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_snap_period ON submission_snapshot(period);
+
 	INSERT OR IGNORE INTO app_config (key, value) VALUES ('file_root_path', '');
 	`
 

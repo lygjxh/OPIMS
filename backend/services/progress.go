@@ -39,6 +39,12 @@ type SubmissionCell struct {
 	FilePath  string `json:"file_path"`  // 绝对路径，供后续「打开原文件」
 	SubmitAt  string `json:"submit_at"`  // 文件修改时间 YYYY-MM-DD
 	DirExists bool   `json:"dir_exists"` // 存放目录是否存在
+
+	// 以下由人工复核填充（1b）
+	Reviewed  bool   `json:"reviewed"`   // 是否经人工复核
+	SysStatus string `json:"sys_status"` // 被覆盖前的系统判定，便于显示「原判 X」
+	Note      string `json:"note"`       // 复核备注
+	Reviewer  string `json:"reviewer"`
 }
 
 // PlanInfo 某个层级进度计划的当前最新版本。

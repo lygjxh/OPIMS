@@ -12,6 +12,12 @@
         <el-button @click="load" :loading="loading">
           <el-icon><Refresh /></el-icon>重新扫描
         </el-button>
+        <el-button type="primary" plain :disabled="!res" @click="takeSnapshot">
+          <el-icon><Files /></el-icon>存本期快照
+        </el-button>
+        <el-button :disabled="!res" @click="openCompliance">
+          <el-icon><DataAnalysis /></el-icon>年度合规率
+        </el-button>
       </div>
     </div>
 
@@ -69,10 +75,10 @@
                   <div class="p-name">{{ r.short_name }}</div>
                   <div class="p-country">{{ r.country || '-' }}</div>
                 </td>
-                <td v-for="c in r.cells" :key="c.code" class="c-cell">
-                  <span class="st" :class="'st-' + statusClass(c.status)"
-                    :title="cellTip(c)">
-                    {{ c.status }}
+                <td v-for="c in r.cells" :key="c.code" class="c-cell clickable"
+                  :title="cellTip(c)" @click="openReview(r, c)">
+                  <span class="st" :class="'st-' + statusClass(c.status)">
+                    {{ c.status }}<i v-if="c.reviewed" class="rv-dot" title="已人工复核"></i>
                   </span>
                   <div class="c-date" v-if="c.submit_at">{{ c.submit_at }}</div>
                   <div class="c-date warn" v-else-if="!c.dir_exists">未建目录</div>
@@ -94,7 +100,8 @@
 
         <p class="board-note">
           <el-icon><InfoFilled /></el-icon>
-          周报按周计，不进月度看板；本月周报份数见下方。进度计划为事件驱动，只显示各层级当前最新版本。
+          点击任一格可人工修正判定并加备注（带小圆点的表示已复核）。
+          周报按周计，不进月度看板；进度计划为事件驱动，只显示各层级最新版本。
         </p>
       </el-card>
 
@@ -123,13 +130,94 @@
         </p>
       </el-card>
     </template>
+
+    <!-- 人工复核 -->
+    <el-dialog v-model="reviewVisible" title="人工复核" width="460px">
+      <template v-if="editing">
+        <table class="rv-info">
+          <tbody>
+            <tr><th>项目</th><td>{{ editing.project }}</td></tr>
+            <tr><th>文件类型</th><td>{{ editing.name }}（{{ editing.code }}）</td></tr>
+            <tr><th>周期 / 截止</th><td>{{ editing.period }} / {{ editing.deadline }}</td></tr>
+            <tr><th>系统判定</th><td>
+              <span class="st" :class="'st-' + statusClass(editing.sysStatus)">{{ editing.sysStatus }}</span>
+              <span v-if="editing.fileName" class="fn">{{ editing.fileName }}</span>
+            </td></tr>
+          </tbody>
+        </table>
+        <el-form label-width="76px" style="margin-top:14px">
+          <el-form-item label="修正为">
+            <el-radio-group v-model="form.status">
+              <el-radio-button label="">不修正</el-radio-button>
+              <el-radio-button label="已交">已交</el-radio-button>
+              <el-radio-button label="迟交">迟交</el-radio-button>
+              <el-radio-button label="缺交">缺交</el-radio-button>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item label="备注">
+            <el-input v-model="form.note" type="textarea" :rows="2"
+              placeholder="如：已电话催报 / 业主原因延后 / 已邮件收到未归档" />
+          </el-form-item>
+          <el-form-item label="复核人">
+            <el-input v-model="form.reviewer" placeholder="姓名" style="width:160px" />
+          </el-form-item>
+        </el-form>
+        <p class="rv-tip">
+          <el-icon><InfoFilled /></el-icon>
+          修正会覆盖系统判定并计入合规率，所有修改留痕可追溯。
+        </p>
+      </template>
+      <template #footer>
+        <el-button @click="reviewVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveReview">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 年度合规率 -->
+    <el-dialog v-model="compVisible" title="年度报送合规率" width="620px">
+      <div class="comp-head">
+        <el-date-picker v-model="compYear" type="year" value-format="YYYY"
+          :clearable="false" style="width:120px" @change="loadCompliance" />
+        <el-button size="small" :disabled="!comp?.rows?.length" @click="exportCompliance">
+          <el-icon><Download /></el-icon>导出 Excel
+        </el-button>
+      </div>
+      <template v-if="comp">
+        <el-empty v-if="!comp.rows.length"
+          description="该年度尚无核查快照。请先在看板上点「存本期快照」" />
+        <template v-else>
+          <p class="comp-scope">
+            统计周期：{{ comp.periods[0] }} 至 {{ comp.periods[comp.periods.length - 1] }}
+            （共 {{ comp.periods.length }} 期已核查）· 仅统计必交项
+          </p>
+          <table class="comp">
+            <thead><tr><th>项目</th><th>应交</th><th>按时</th><th>迟交</th><th>缺交</th><th>按时率</th></tr></thead>
+            <tbody>
+              <tr v-for="r in comp.rows" :key="r.project">
+                <td class="c-left">{{ r.project }}</td>
+                <td>{{ r.total }}</td><td>{{ r.submitted }}</td>
+                <td>{{ r.late }}</td><td>{{ r.missing }}</td>
+                <td><span :class="rateClass(r.compliance)">{{ r.compliance.toFixed(1) }}%</span></td>
+              </tr>
+              <tr class="comp-total">
+                <td class="c-left">合计</td>
+                <td>{{ comp.overall.total }}</td><td>{{ comp.overall.submitted }}</td>
+                <td>{{ comp.overall.late }}</td><td>{{ comp.overall.missing }}</td>
+                <td><span :class="rateClass(comp.overall.compliance)">{{ comp.overall.compliance.toFixed(1) }}%</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </template>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
-import { Refresh, FolderDelete, InfoFilled } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Refresh, FolderDelete, InfoFilled, Files, DataAnalysis, Download } from '@element-plus/icons-vue'
 
 const period = ref('')
 const res = ref<any>(null)
@@ -155,7 +243,90 @@ function cellTip(c: any) {
   const parts = [`${c.name}（${c.code}）`, `周期：${c.period}`, `截止：${c.deadline}`]
   if (c.file_name) parts.push(`文件：${c.file_name}`)
   if (!c.dir_exists) parts.push('存放目录尚未建立')
+  if (c.reviewed) {
+    if (c.sys_status) parts.push(`已复核：系统原判「${c.sys_status}」`)
+    if (c.note) parts.push(`备注：${c.note}`)
+  }
+  parts.push('（点击可人工修正）')
   return parts.join('\n')
+}
+
+/* ---- 人工复核 ---- */
+const reviewVisible = ref(false)
+const editing = ref<any>(null)
+const form = ref({ status: '', note: '', reviewer: '' })
+
+function openReview(row: any, c: any) {
+  editing.value = {
+    project: row.short_name, code: c.code, name: c.name,
+    period: c.period, deadline: c.deadline, fileName: c.file_name,
+    // 已复核过的格子，系统原判存在 sys_status 里；未复核则当前状态即系统判定
+    sysStatus: c.sys_status || c.status,
+  }
+  form.value = { status: c.sys_status ? c.status : '', note: c.note || '', reviewer: c.reviewer || '' }
+  reviewVisible.value = true
+}
+
+async function saveReview() {
+  try {
+    await axios.post('/api/progress/review', {
+      period: res.value.period,
+      project: editing.value.project,
+      code: editing.value.code,
+      status: form.value.status,
+      note: form.value.note,
+      reviewer: form.value.reviewer,
+    })
+    reviewVisible.value = false
+    ElMessage.success('已保存复核')
+    load()
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.error || '保存失败')
+  }
+}
+
+/* ---- 快照 ---- */
+async function takeSnapshot() {
+  try {
+    await ElMessageBox.confirm(
+      `将本期（${res.value.period}）核查结果存为快照，作为年度考核依据。` +
+      '同期已有快照会被覆盖。', '存本期快照', { type: 'info' })
+  } catch { return }
+  try {
+    const { data } = await axios.post('/api/progress/snapshot', null,
+      { params: { period: res.value.period } })
+    ElMessage.success(`已保存 ${data.period} 快照，共 ${data.records} 条记录`)
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.error || '保存快照失败')
+  }
+}
+
+/* ---- 年度合规率 ---- */
+const compVisible = ref(false)
+const compYear = ref(String(new Date().getFullYear()))
+const comp = ref<any>(null)
+
+function openCompliance() { compVisible.value = true; loadCompliance() }
+
+async function loadCompliance() {
+  try {
+    const { data } = await axios.get('/api/progress/compliance', { params: { year: compYear.value } })
+    comp.value = data
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.error || '读取合规率失败')
+    comp.value = null
+  }
+}
+
+async function exportCompliance() {
+  try {
+    const { data } = await axios.get('/api/progress/compliance/export',
+      { params: { year: compYear.value }, responseType: 'blob' })
+    const url = URL.createObjectURL(data)
+    const a = document.createElement('a')
+    a.href = url; a.download = `报送合规汇总_${compYear.value}.xlsx`; a.click()
+    URL.revokeObjectURL(url)
+  } catch { ElMessage.error('导出失败') }
 }
 
 async function load() {
@@ -258,6 +429,30 @@ i.lg.st-miss { background: #d03b3b; }
 .err { text-align: center; color: var(--c-text-muted); padding: 20px; }
 .err-title { font-size: 15px; color: var(--c-text-strong); margin: 12px 0 6px; font-weight: 600; }
 .err-dir { font-size: 12px; margin: 0 0 18px; word-break: break-all; }
+
+/* 复核 */
+.c-cell.clickable { cursor: pointer; }
+.rv-dot {
+  display: inline-block; width: 5px; height: 5px; border-radius: 50%;
+  background: currentColor; margin-left: 4px; vertical-align: middle;
+}
+.rv-info { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rv-info th, .rv-info td { border: 1px solid var(--c-border); padding: 6px 10px; text-align: left; }
+.rv-info th { background: #f6f9fe; color: var(--c-text-muted); font-weight: 500; width: 88px; white-space: nowrap; }
+.fn { font-size: 11.5px; color: var(--c-text-muted); margin-left: 8px; word-break: break-all; }
+.rv-tip {
+  display: flex; align-items: center; gap: 5px; margin: 0;
+  font-size: 11.5px; color: var(--c-text-muted);
+}
+
+/* 年度合规率 */
+.comp-head { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+.comp-scope { font-size: 12px; color: var(--c-text-muted); margin: 0 0 10px; }
+.comp { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.comp th, .comp td { border: 1px solid var(--c-border); padding: 6px 10px; text-align: center; }
+.comp th { background: #f6f9fe; color: var(--c-text-muted); font-weight: 500; }
+.comp .c-left { text-align: left; font-weight: 500; color: var(--c-text-strong); }
+.comp-total td { background: #f6f9fe; font-weight: 600; }
 
 @media (max-width: 1100px) { .kpi-row { grid-template-columns: repeat(3, 1fr); } }
 </style>
