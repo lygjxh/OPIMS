@@ -1,10 +1,7 @@
 <template>
   <div class="pc">
     <div class="page-head">
-      <div>
-        <h1 class="page-title">报送核查</h1>
-        <p class="page-desc">按周期核查各在建项目的进度文件报送情况</p>
-      </div>
+      <div class="sec-title">按周期核查各在建项目的进度文件报送情况</div>
       <div class="head-ops">
         <el-date-picker v-model="period" type="month" placeholder="选择周期"
           value-format="YYYY-MM" format="YYYY 年 M 月" :clearable="false"
@@ -351,6 +348,7 @@ onMounted(load)
 <style scoped>
 .pc { display: flex; flex-direction: column; gap: 16px; }
 .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.sec-title { font-size: 13px; color: var(--c-text-muted); }
 .page-title { font-size: 22px; font-weight: 700; color: var(--c-text-strong); margin: 0; }
 .page-desc { font-size: 13px; color: var(--c-text-muted); margin: 4px 0 0; }
 .head-ops { display: flex; gap: 8px; align-items: center; }

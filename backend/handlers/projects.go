@@ -128,6 +128,31 @@ func (h *Handler) createProject(w http.ResponseWriter, r *http.Request) {
 	p := body.Project
 	parseGPS(body.GPSInput, &p)
 
+	// 项目状态兜底：数据库默认「在建」，但显式传空串会覆盖掉默认值，
+	// 导致该项目落在默认列表筛选（在建+未开工）之外而"消失"。
+	if strings.TrimSpace(p.ProjectStatus) == "" {
+		p.ProjectStatus = "在建"
+	}
+
+	// short_name 的 UNIQUE 约束对软删除的行同样生效，若不处理，
+	// 删除过的项目再建同名会报「已存在」，但列表里又查不到，令人费解。
+	// 这里直接复用那条记录：用新数据覆盖并恢复显示。
+	var deletedID int
+	if err := database.DB.QueryRow(
+		`SELECT id FROM projects WHERE short_name=? AND is_deleted=1`, p.ShortName).
+		Scan(&deletedID); err == nil {
+		if _, err := database.DB.Exec(
+			"UPDATE projects SET "+updateSetCols()+" is_deleted=0, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+			append(projectsInsertVals(&p), deletedID)...); err != nil {
+			http.Error(w, friendlyDBError(err), http.StatusBadRequest)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]string{
+			"ok": "created", "note": "该简称此前被删除过，已用新数据恢复该项目",
+		})
+		return
+	}
+
 	_, err := database.DB.Exec(
 		"INSERT INTO projects ("+projectsInsertCols()+") VALUES ("+placeholders(82)+")",
 		projectsInsertVals(&p)...)
