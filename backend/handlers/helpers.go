@@ -98,13 +98,16 @@ type nameMapping struct{ ShortName, ContractNo string }
 
 func loadNameMapping(rootPath string) map[string]nameMapping {
 	mapping := map[string]nameMapping{}
-	// 简称映射表查找顺序（rootPath = 新根 `海外运营中心`）：
-	// 1. 与汇总表同文件夹 `<根>/01.项目管理情况汇总表/`（惯用存放位置）
-	// 2. `<根>/01.Project Files/`
-	// 3. `<根>/` 直放
-	// 4. 旧根兼容：`<根>/../01.项目管理情况汇总表/`
+	// 简称映射表查找顺序（rootPath = 根目录 `海外运营中心`）：
+	// 1. `<根>/06.Received File/01.项目管理情况汇总表/` —— **实际存放位置**，
+	//    简称表与公司下发的项目管理情况汇总表放在一起，收文即在此目录
+	// 2. `<根>/01.项目管理情况汇总表/` —— 若把汇总表直接放在根下
+	// 3. `<根>/01.Project Files/`
+	// 4. `<根>/` 直放
+	// 5. 旧根兼容：`<根>/../01.项目管理情况汇总表/`（根目录上移前的位置）
 	// 不使用任何绝对路径，换机器/换目录靠「设置根目录」功能适配。
 	paths := []string{
+		filepath.Join(rootPath, "06.Received File", "01.项目管理情况汇总表", "海外项目简称.xlsx"),
 		filepath.Join(rootPath, "01.项目管理情况汇总表", "海外项目简称.xlsx"),
 		filepath.Join(rootPath, "01.Project Files", "海外项目简称.xlsx"),
 		filepath.Join(rootPath, "海外项目简称.xlsx"),
