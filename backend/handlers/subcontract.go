@@ -172,7 +172,7 @@ func (h *Handler) SubcontractByID(w http.ResponseWriter, r *http.Request) {
 	case "GET":
 		var rec models.SubcontractRecord
 		err := database.DB.QueryRow(
-			`SELECT id, seq_no, branch_company, project_name, main_contract_amount,
+			`SELECT COALESCE(period,''), id, seq_no, branch_company, project_name, main_contract_amount,
 			        sub_name, sub_tier, sub_profession_raw, sub_contract_profession,
 			        sub_controller, sub_controller_phone, contract_no, contract_name,
 			        contract_amount, supplement_amount, contract_date, progress_percent,
@@ -184,7 +184,7 @@ func (h *Handler) SubcontractByID(w http.ResponseWriter, r *http.Request) {
 			        project_short_name, standardized_profession, profession_category, is_deleted,
 			        COALESCE((SELECT 1 FROM subcontractor_blacklist WHERE sub_full_name=ps.sub_name AND status='列入中' LIMIT 1), 0) as blacklisted
 			 FROM project_subcontract ps WHERE id=?`, id,
-		).Scan(&rec.ID, &rec.SeqNo, &rec.BranchCompany, &rec.ProjectName, &rec.MainContractAmount,
+		).Scan(&rec.Period, &rec.ID, &rec.SeqNo, &rec.BranchCompany, &rec.ProjectName, &rec.MainContractAmount,
 			&rec.SubName, &rec.SubTier, &rec.SubProfessionRaw, &rec.SubContractProfession,
 			&rec.SubController, &rec.SubControllerPhone, &rec.ContractNo, &rec.ContractName,
 			&rec.ContractAmount, &rec.SupplementAmount, &rec.ContractDate, &rec.ProgressPercent,
@@ -459,31 +459,31 @@ func (h *Handler) SubcontractExport(w http.ResponseWriter, r *http.Request) {
 }
 
 // saveUploadFile saves a multipart upload to a temp file.
+//
+// 必须走 ParseMultipartForm 而不是 MultipartReader：后者会把 r.MultipartForm 置成
+// multipartByReader 哨兵，此后 r.FormValue 恒返回空字符串，导致同一请求里随文件一起提交的
+// 普通字段（如导入账期 period）永远读不到——与字段在表单中的先后顺序无关。
 func saveUploadFile(r *http.Request, field string) (string, error) {
 	r.Body = http.MaxBytesReader(nil, r.Body, 50<<20)
-	mr, err := r.MultipartReader()
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		return "", err
+	}
+	src, _, err := r.FormFile(field)
+	if err != nil {
+		return "", fmt.Errorf("field %s not found in upload: %w", field, err)
+	}
+	defer src.Close()
+
+	tmpFile, err := os.CreateTemp("", "opims-subcontract-*.xlsx")
 	if err != nil {
 		return "", err
 	}
-	for {
-		part, err := mr.NextPart()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return "", err
-		}
-		if part.FormName() == field {
-			tmpFile, err := os.CreateTemp("", "opims-subcontract-*.xlsx")
-			if err != nil {
-				return "", err
-			}
-			defer tmpFile.Close()
-			io.Copy(tmpFile, part)
-			return tmpFile.Name(), nil
-		}
+	defer tmpFile.Close()
+	if _, err := io.Copy(tmpFile, src); err != nil {
+		os.Remove(tmpFile.Name())
+		return "", err
 	}
-	return "", fmt.Errorf("field %s not found in upload", field)
+	return tmpFile.Name(), nil
 }
 
 func cellName(col, row int) string {

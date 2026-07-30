@@ -31,10 +31,12 @@ type rowScanner interface {
 }
 
 // scanProject 从一行查询结果填充 Project（列顺序须与 "SELECT * FROM projects" 一致）。
-func scanProject(rows rowScanner) *models.Project {
+// 必须返回 error：查不到记录时若仍返回非 nil 的空对象，调用处会把"不存在"误判成"已存在"，
+// 曾导致项目导入把全部新项目当冲突跳过、以及已删除项目的详情接口返回 200 空对象。
+func scanProject(rows rowScanner) (*models.Project, error) {
 	var p models.Project
 	var ca, ua string
-	rows.Scan(&p.ID, &p.ShortName, &p.ContractNo, &p.ProjectName, &p.ProjectType,
+	err := rows.Scan(&p.ID, &p.ShortName, &p.ContractNo, &p.ProjectName, &p.ProjectType,
 		&p.ProjectStatus, &p.ImplementUnit, &p.ContractAmount, &p.BudgetAmount,
 		&p.ContractScope, &p.KeyPoints, &p.DomesticOverseas,
 		&p.Province, &p.City, &p.Address, &p.Country,
@@ -59,7 +61,10 @@ func scanProject(rows rowScanner) *models.Project {
 		&p.SupervisionUnit, &p.SupervisionContact, &p.SupervisionPhone,
 		&p.Reporter, &p.PersonnelMgmt, &p.PersonnelLabor,
 		&p.IsDeleted, &ca, &ua)
-	return &p
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
 }
 
 func projectsInsertCols() string {

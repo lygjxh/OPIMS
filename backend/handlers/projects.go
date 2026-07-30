@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -39,7 +40,15 @@ func (h *Handler) ProjectByID(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case "GET":
-		p := scanProject(database.DB.QueryRow("SELECT * FROM projects WHERE id=? AND is_deleted=0", id))
+		p, err := scanProject(database.DB.QueryRow("SELECT * FROM projects WHERE id=? AND is_deleted=0", id))
+		if err == sql.ErrNoRows {
+			http.Error(w, "项目不存在或已删除", http.StatusNotFound)
+			return
+		}
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		json.NewEncoder(w).Encode(p)
 	case "PUT":
 		h.updateProject(w, r)
@@ -96,9 +105,11 @@ func (h *Handler) listProjects(w http.ResponseWriter, r *http.Request) {
 
 	var projects []models.Project
 	for rows.Next() {
-		if p := scanProject(rows); p != nil {
-			projects = append(projects, *p)
+		p, err := scanProject(rows)
+		if err != nil {
+			continue
 		}
+		projects = append(projects, *p)
 	}
 
 	// Distinct countries for filter dropdown
@@ -241,7 +252,11 @@ func (h *Handler) ImportProjects(w http.ResponseWriter, r *http.Request) {
 			p.ShortName = p.ProjectName
 		}
 
-		existing := scanProject(database.DB.QueryRow("SELECT * FROM projects WHERE short_name=? AND is_deleted=0", p.ShortName))
+		existing, err := scanProject(database.DB.QueryRow("SELECT * FROM projects WHERE short_name=? AND is_deleted=0", p.ShortName))
+		if err != nil && err != sql.ErrNoRows {
+			skipped++
+			continue
+		}
 
 		if existing != nil {
 			// Conflict detected
@@ -344,9 +359,11 @@ func (h *Handler) ExportProjects(w http.ResponseWriter, r *http.Request) {
 
 	var projects []models.Project
 	for rows.Next() {
-		if p := scanProject(rows); p != nil {
-			projects = append(projects, *p)
+		p, err := scanProject(rows)
+		if err != nil {
+			continue
 		}
+		projects = append(projects, *p)
 	}
 
 	data, err := services.ExportExcel(projects, false)

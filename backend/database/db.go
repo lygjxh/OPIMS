@@ -12,6 +12,11 @@ import (
 var DB *sql.DB
 var dbFilePath string
 
+// 驱动是 modernc.org/sqlite，PRAGMA 只认 _pragma=xxx(v) 这种写法。
+// 之前照搬了 mattn/go-sqlite3 的 _journal_mode=WAL&_foreign_keys=on，
+// 参数被静默忽略，库一直跑在 rollback journal 模式、外键也没开。
+const dsnParams = "?_pragma=journal_mode(WAL)&_pragma=foreign_keys(on)"
+
 func DBPath() string { return dbFilePath }
 
 func Init(dbPath string) error {
@@ -22,7 +27,7 @@ func Init(dbPath string) error {
 	}
 
 	var err error
-	DB, err = sql.Open("sqlite", dbPath+"?_journal_mode=WAL&_foreign_keys=on")
+	DB, err = sql.Open("sqlite", dbPath+dsnParams)
 	if err != nil {
 		return err
 	}
@@ -376,7 +381,7 @@ func Close() error {
 
 func Reopen() error {
 	var err error
-	DB, err = sql.Open("sqlite", dbFilePath+"?_journal_mode=WAL&_foreign_keys=on")
+	DB, err = sql.Open("sqlite", dbFilePath+dsnParams)
 	if err != nil {
 		return err
 	}
