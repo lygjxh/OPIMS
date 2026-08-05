@@ -80,6 +80,12 @@ type ProgressDataResult struct {
 		Orange   int `json:"orange"`
 		Red      int `json:"red"`
 		Mismatch int `json:"mismatch"`
+		// 考核用（细则 7.1「总体进度偏差 SPI」）。
+		// 只对 SPIValid 的项目取平均——把「累计计划产值为 0（没填数）」当成 SPI=0
+		// 参与平均，会把整体均值拉到远低于实际的水平，据此考核是冤枉项目部。
+		// SPICount 为 0 时 AvgSPI 无意义，界面须据此显示「无数据」而不是 0.00。
+		AvgSPI   float64 `json:"avg_spi"`
+		SPICount int     `json:"spi_count"`
 	} `json:"summary"`
 }
 
@@ -123,6 +129,13 @@ func ScanProgressData(projectsDir string, projects []ProjectBrief, period string
 		if it.Mismatch {
 			res.Summary.Mismatch++
 		}
+		if it.SPIValid {
+			res.Summary.AvgSPI += it.SPI
+			res.Summary.SPICount++
+		}
+	}
+	if res.Summary.SPICount > 0 {
+		res.Summary.AvgSPI /= float64(res.Summary.SPICount)
 	}
 	return res
 }

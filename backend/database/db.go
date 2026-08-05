@@ -332,6 +332,55 @@ func migrate() error {
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 
+	-- 进度管理 · 时限雷达登记簿（细则 5.1 Time Bar、6.3 视为认可、附件 G 第十节）
+	--
+	-- 为什么要有这张表：附件 E 是项目部按月报上来的，而时效条款在合同签订时就已存在。
+	-- 等项目部报，等于把「合同签了到第一次报表」之间的时效全漏掉。中心在合同评审阶段
+	-- 直接登记进这张表，系统当天就能开始倒计时，不依赖任何人交表。
+	--
+	-- direction 是本表最关键的字段，方向搞反后果完全不同：
+	--   claim = 业主的行为给了我方索赔机会，逾期则丧失索赔权（附件 G 一~九节、G10.1~G10.4）
+	--   risk  = 我方沉默将使自己丧失权利（细则 6.3「视为认可」、附件 G G10.5）
+	--           这类损失由我方自负、无补救途径，到期前必须强制提醒，默认 3 日（细则 6.3.2）
+	--
+	-- ⚠️ 本表**不提供删除**。附件 G 十二.4 规定：经复核不构成索赔的只能改状态为
+	-- not_claim 并写明理由，记录本身是我方「已尽注意义务」的证明，删了就没了。
+	-- 后续接手不要图省事加 DELETE 接口。
+	CREATE TABLE IF NOT EXISTS time_bar_registry (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		project TEXT NOT NULL,
+		code TEXT DEFAULT '',
+		signal_code TEXT DEFAULT '',
+		title TEXT NOT NULL,
+		clause TEXT DEFAULT '',
+		direction TEXT NOT NULL DEFAULT 'claim',
+		trigger_date TEXT DEFAULT '',
+		due_days INTEGER DEFAULT 0,
+		due_date TEXT NOT NULL,
+		remind_days INTEGER DEFAULT 0,
+		status TEXT NOT NULL DEFAULT 'open',
+		closed_reason TEXT DEFAULT '',
+		remark TEXT DEFAULT '',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+	CREATE INDEX IF NOT EXISTS idx_tbr_project ON time_bar_registry(project);
+	CREATE INDEX IF NOT EXISTS idx_tbr_due ON time_bar_registry(due_date);
+
+	-- 状态变更留痕：谁在什么时候把哪条改成了什么、理由是什么。
+	-- 「已尽注意义务」的证明力来自这条链，不是来自当前状态。
+	CREATE TABLE IF NOT EXISTS time_bar_registry_log (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		registry_id INTEGER NOT NULL,
+		action TEXT NOT NULL,
+		from_status TEXT DEFAULT '',
+		to_status TEXT DEFAULT '',
+		reason TEXT DEFAULT '',
+		operator TEXT DEFAULT '',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+	CREATE INDEX IF NOT EXISTS idx_tbrl_reg ON time_bar_registry_log(registry_id);
+
 	INSERT OR IGNORE INTO app_config (key, value) VALUES ('file_root_path', '');
 	`
 

@@ -1,10 +1,8 @@
 <template>
   <div class="ai">
+    <!-- 标题由外层「月度报送」容器提供，这里只留本标签页的操作 -->
     <div class="page-head">
-      <div>
-        <h1 class="page-title">收文归档</h1>
-        <p class="page-desc">把收到的文件按规范改名并归入对应项目目录，省去手工重命名与搬运</p>
-      </div>
+      <div class="sec-desc">把收到的文件按规范改名并归入对应项目目录，省去手工重命名与搬运</div>
       <div class="head-ops">
         <el-input v-model="dir" placeholder="待归档目录" style="width:340px" clearable />
         <el-button @click="load" :loading="loading"><el-icon><Refresh /></el-icon>扫描</el-button>
@@ -246,9 +244,8 @@ onMounted(load)
 
 <style scoped>
 .ai { display: flex; flex-direction: column; gap: 16px; }
-.page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.page-title { font-size: 22px; font-weight: 700; color: var(--c-text-strong); margin: 0; }
-.page-desc { font-size: 13px; color: var(--c-text-muted); margin: 4px 0 0; }
+.page-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.sec-desc { font-size: 13px; color: var(--c-text-muted); }
 .head-ops { display: flex; gap: 8px; align-items: center; }
 
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }

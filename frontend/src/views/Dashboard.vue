@@ -343,7 +343,7 @@ const shortcuts = [
   { path: '/subcontract/library', label: t('menu.subcontractors'), icon: OfficeBuilding, ready: true },
   { path: '/subcontract/blacklist', label: t('menu.blacklistSub'), icon: WarningFilled, ready: true },
   { path: '/progress', label: t('menu.progress'), icon: TrendCharts, ready: true },
-  { path: '/progress/timebar', label: t('menu.timebar'), icon: AlarmClock, ready: true },
+  { path: '/progress/radar', label: t('menu.progressRadar'), icon: AlarmClock, ready: true },
   { path: '/progress/archive', label: t('menu.archive'), icon: FolderChecked, ready: true },
   { path: '/quality', label: t('menu.quality'), icon: CircleCheck, ready: false },
 ]

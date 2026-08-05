@@ -12,10 +12,21 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 )
 
-const port = "8080"
+const defaultPort = "8080"
+
+// 端口默认 8080，可用环境变量 OPIMS_PORT 改。
+// 用途：本地要同时跑「正在用的正式实例」和「待验证的新版本」时，
+// 后者换个端口即可，不必先把前者关掉。日常使用不需要设这个变量。
+var port = func() string {
+	if p := strings.TrimSpace(os.Getenv("OPIMS_PORT")); p != "" {
+		return p
+	}
+	return defaultPort
+}()
 
 func main() {
 	// Check if already running — if so, just open browser and exit
@@ -88,6 +99,11 @@ func main() {
 	mux.HandleFunc("/api/progress/compliance", h.ProgressCompliance)
 	mux.HandleFunc("/api/progress/compliance/export", h.ProgressComplianceExport)
 	mux.HandleFunc("/api/timebar", h.TimeBarList)
+	// 时限雷达：注册顺序从具体到宽泛，ServeMux 前缀匹配下 /log 必须在 /{id} 之前
+	mux.HandleFunc("/api/radar/registry/log", h.RadarRegistryLog)
+	mux.HandleFunc("/api/radar/registry/", h.RadarRegistryByID)
+	mux.HandleFunc("/api/radar/registry", h.RadarRegistry)
+	mux.HandleFunc("/api/radar", h.Radar)
 	mux.HandleFunc("/api/eot", h.EOTList)
 	mux.HandleFunc("/api/progress/indicators", h.ProgressIndicators)
 	mux.HandleFunc("/api/archive/inbox", h.ArchiveInbox)

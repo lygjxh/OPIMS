@@ -31,26 +31,31 @@ const router = createRouter({
     },
 
     // ---- 进度管理 ----
+    // 子菜单按「看的频率」排：每天看的时限雷达在最前，季度才用的计划与考核在最后。
     { path: '/progress', name: 'progress', component: () => import('../views/ProgressOverview.vue') },
+    {
+      path: '/progress/radar', name: 'progressRadar',
+      component: () => import('../views/Radar.vue'), meta: { group: 'progress' },
+    },
+    {
+      path: '/progress/check', name: 'progressCheck',
+      component: () => import('../views/MonthlySubmission.vue'), meta: { group: 'progress' },
+    },
     {
       path: '/progress/indicators', name: 'progressIndicators',
       component: () => import('../views/ProgressIndicators.vue'), meta: { group: 'progress' },
     },
     {
-      path: '/progress/check', name: 'progressCheck',
-      component: () => import('../views/ProgressCheck.vue'), meta: { group: 'progress' },
+      path: '/progress/deviation', name: 'progressDeviation',
+      component: () => import('../views/Placeholder.vue'), meta: { group: 'progress' },
     },
     {
       path: '/progress/eot', name: 'progressEot',
       component: () => import('../views/EOTList.vue'), meta: { group: 'progress' },
     },
     {
-      path: '/progress/timebar', name: 'timebar',
-      component: () => import('../views/TimeBar.vue'), meta: { group: 'progress' },
-    },
-    {
-      path: '/progress/archive', name: 'archive',
-      component: () => import('../views/ArchiveInbox.vue'), meta: { group: 'progress' },
+      path: '/progress/plan', name: 'progressPlan',
+      component: () => import('../views/Placeholder.vue'), meta: { group: 'progress' },
     },
 
     // ---- 质量管理 ----
@@ -62,8 +67,13 @@ const router = createRouter({
     { path: '/subcontractors', redirect: '/subcontract/library' },
     { path: '/blacklist-sub', redirect: '/subcontract/blacklist' },
     { path: '/blacklist-person', redirect: '/personnel/blacklist' },
-    { path: '/timebar', redirect: '/progress/timebar' },
-    { path: '/archive', redirect: '/progress/archive' },
+    // 收文归档并入「月度报送」的标签页，旧地址落到对应标签
+    { path: '/archive', redirect: '/progress/check?tab=archive' },
+    { path: '/progress/archive', redirect: '/progress/check?tab=archive' },
+    // 合同时效预警已被时限雷达取代（雷达是它的超集：同样读附件 E，另加中心登记簿）。
+    // 两个页面看同一批数据必然出现「这边剩 3 天、那边已逾期」的对不上账，故只保留一个。
+    { path: '/timebar', redirect: '/progress/radar' },
+    { path: '/progress/timebar', redirect: '/progress/radar' },
   ]
 })
 

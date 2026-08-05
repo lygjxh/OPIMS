@@ -116,12 +116,14 @@ const menu = [
   },
   {
     path: '/progress', key: 'progress', icon: TrendCharts, disabled: false,
+    // 按「看的频率」排序：每天看的在最前，季度才用的在最后
     children: [
-      { path: '/progress/indicators', key: 'progressIndicators', disabled: false },
+      { path: '/progress/radar', key: 'progressRadar', disabled: false },
       { path: '/progress/check', key: 'progressCheck', disabled: false },
+      { path: '/progress/indicators', key: 'progressIndicators', disabled: false },
+      { path: '/progress/deviation', key: 'progressDeviation', disabled: true },
       { path: '/progress/eot', key: 'progressEot', disabled: false },
-      { path: '/progress/timebar', key: 'timebar', disabled: false },
-      { path: '/progress/archive', key: 'archive', disabled: false },
+      { path: '/progress/plan', key: 'progressPlan', disabled: true },
     ],
   },
   { path: '/quality', key: 'quality', icon: CircleCheck, disabled: true },
