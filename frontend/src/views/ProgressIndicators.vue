@@ -1,5 +1,12 @@
 <template>
   <div class="pi">
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">指标</h1>
+        <p class="page-desc">月度进度指标与风险灯 · 风险灯按细则 4.1 取最严重项判定</p>
+      </div>
+    </div>
+
     <div class="bar">
       <el-date-picker v-model="period" type="month" value-format="YYYY-MM"
         format="YYYY 年 M 月" :clearable="false" style="width:150px" @change="load" />
@@ -110,6 +117,8 @@ defineExpose({ load })
 
 <style scoped>
 .pi { display: flex; flex-direction: column; gap: 14px; }
+.page-title { font-size: 22px; font-weight: 700; color: var(--c-text-strong); margin: 0; }
+.page-desc { font-size: 13px; color: var(--c-text-muted); margin: 4px 0 0; }
 .bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .hint { font-size: 11.5px; color: var(--c-text-muted); }
 

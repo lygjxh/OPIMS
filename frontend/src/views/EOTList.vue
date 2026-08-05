@@ -1,5 +1,14 @@
 <template>
   <div class="eot">
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">工期索赔</h1>
+        <p class="page-desc">
+          附件 D 索赔跟踪台账 · CN 10 日、PCO 21 日历日（细则 5.1）
+        </p>
+      </div>
+    </div>
+
     <div class="kpi-row">
       <div class="kpi"><span class="k-lb">索赔事项</span><span class="k-v">{{ s.total }}</span></div>
       <div class="kpi danger"><span class="k-lb">CN 已逾期</span><span class="k-v">{{ s.overdue_cn }}</span></div>
@@ -116,6 +125,9 @@ defineExpose({ load })
 
 <style scoped>
 .eot { display: flex; flex-direction: column; gap: 14px; }
+.page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.page-title { font-size: 22px; font-weight: 700; color: var(--c-text-strong); margin: 0; }
+.page-desc { font-size: 13px; color: var(--c-text-muted); margin: 4px 0 0; }
 .kpi-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
 .kpi {
   background: var(--c-surface); border: 1px solid var(--c-border);
