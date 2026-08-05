@@ -31,10 +31,12 @@ type rowScanner interface {
 }
 
 // scanProject 从一行查询结果填充 Project（列顺序须与 "SELECT * FROM projects" 一致）。
-func scanProject(rows rowScanner) *models.Project {
+// 必须返回 error：查不到记录时若仍返回非 nil 的空对象，调用处会把"不存在"误判成"已存在"，
+// 曾导致项目导入把全部新项目当冲突跳过、以及已删除项目的详情接口返回 200 空对象。
+func scanProject(rows rowScanner) (*models.Project, error) {
 	var p models.Project
 	var ca, ua string
-	rows.Scan(&p.ID, &p.ShortName, &p.ContractNo, &p.ProjectName, &p.ProjectType,
+	err := rows.Scan(&p.ID, &p.ShortName, &p.ContractNo, &p.ProjectName, &p.ProjectType,
 		&p.ProjectStatus, &p.ImplementUnit, &p.ContractAmount, &p.BudgetAmount,
 		&p.ContractScope, &p.KeyPoints, &p.DomesticOverseas,
 		&p.Province, &p.City, &p.Address, &p.Country,
@@ -59,7 +61,10 @@ func scanProject(rows rowScanner) *models.Project {
 		&p.SupervisionUnit, &p.SupervisionContact, &p.SupervisionPhone,
 		&p.Reporter, &p.PersonnelMgmt, &p.PersonnelLabor,
 		&p.IsDeleted, &ca, &ua)
-	return &p
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
 }
 
 func projectsInsertCols() string {
@@ -98,13 +103,16 @@ type nameMapping struct{ ShortName, ContractNo string }
 
 func loadNameMapping(rootPath string) map[string]nameMapping {
 	mapping := map[string]nameMapping{}
-	// 简称映射表查找顺序（rootPath = 新根 `海外运营中心`）：
-	// 1. 与汇总表同文件夹 `<根>/01.项目管理情况汇总表/`（惯用存放位置）
-	// 2. `<根>/01.Project Files/`
-	// 3. `<根>/` 直放
-	// 4. 旧根兼容：`<根>/../01.项目管理情况汇总表/`
+	// 简称映射表查找顺序（rootPath = 根目录 `海外运营中心`）：
+	// 1. `<根>/06.Received File/01.项目管理情况汇总表/` —— **实际存放位置**，
+	//    简称表与公司下发的项目管理情况汇总表放在一起，收文即在此目录
+	// 2. `<根>/01.项目管理情况汇总表/` —— 若把汇总表直接放在根下
+	// 3. `<根>/01.Project Files/`
+	// 4. `<根>/` 直放
+	// 5. 旧根兼容：`<根>/../01.项目管理情况汇总表/`（根目录上移前的位置）
 	// 不使用任何绝对路径，换机器/换目录靠「设置根目录」功能适配。
 	paths := []string{
+		filepath.Join(rootPath, "06.Received File", "01.项目管理情况汇总表", "海外项目简称.xlsx"),
 		filepath.Join(rootPath, "01.项目管理情况汇总表", "海外项目简称.xlsx"),
 		filepath.Join(rootPath, "01.Project Files", "海外项目简称.xlsx"),
 		filepath.Join(rootPath, "海外项目简称.xlsx"),

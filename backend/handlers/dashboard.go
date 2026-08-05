@@ -65,9 +65,18 @@ func (h *Handler) Backup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	timestamp := time.Now().Format("20060102_1504")
+	// 时间戳原本只到分钟，同一分钟内备份两次会静默覆盖前一份。改到秒，
+	// 再对同秒重名的情况追加序号，确保任何一次备份都不会顶掉已有文件。
+	timestamp := time.Now().Format("20060102_150405")
 	filename := fmt.Sprintf("opims_backup_%s.db", timestamp)
 	dest := filepath.Join(body.Path, filename)
+	for i := 2; ; i++ {
+		if _, err := os.Stat(dest); os.IsNotExist(err) {
+			break
+		}
+		filename = fmt.Sprintf("opims_backup_%s_%d.db", timestamp, i)
+		dest = filepath.Join(body.Path, filename)
+	}
 
 	// 数据库运行在 WAL 模式，最近的写入可能还在 -wal 文件里没落盘。
 	// 备份只复制 .db 主文件，故先做 checkpoint 把 WAL 内容合并进主库，
@@ -106,6 +115,15 @@ func (h *Handler) Restore(w http.ResponseWriter, r *http.Request) {
 	if err := database.Close(); err != nil {
 		http.Error(w, "failed to close db: "+err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	// 备份文件只含主库。库跑在 WAL 模式时，旧的 -wal 里可能还有备份之后写入的改动，
+	// 换掉主库却留着它，重新打开时会把这些改动回放回来，恢复就等于没做。
+	for _, suffix := range []string{"-wal", "-shm"} {
+		if err := os.Remove(database.DBPath() + suffix); err != nil && !os.IsNotExist(err) {
+			http.Error(w, "failed to clear "+suffix+": "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	if err := copyFile(body.Path, database.DBPath()); err != nil {
